@@ -1,0 +1,198 @@
+{% extends 'base.html' %}
+
+{% block title %}Rediger pakke: {{ bundle.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>
+        <i class="bi bi-box-seam text-info"></i> {{ bundle.name }}
+        <span class="badge bg-info">Pakke</span>
+    </h1>
+    <a href="{% url 'inventory:product_detail' bundle.betala_product_id %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Tilbake til produkt
+    </a>
+</div>
+
+<div class="row">
+    <!-- Pakke-innhold -->
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-list-check"></i> Pakke-innhold
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="update_quantities">
+                    
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Produkt</th>
+                                <th class="text-center" style="width: 120px;">Antall</th>
+                                <th class="text-end" style="width: 120px;">Enhetspris</th>
+                                <th class="text-end" style="width: 120px;">Sum</th>
+                                <th style="width: 60px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in bundle_items %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'inventory:product_detail' item.product.betala_product_id %}">
+                                        <strong>{{ item.product.name }}</strong>
+                                    </a>
+                                    {% if item.product.category %}
+                                    <br><small class="text-muted">{{ item.product.category.name }}</small>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <input type="number" 
+                                           name="qty_{{ item.product_id }}" 
+                                           value="{{ item.quantity }}"
+                                           min="0"
+                                           class="form-control text-center"
+                                           style="width: 80px; margin: 0 auto;"
+                                           data-price="{{ item.product.price_with_vat_ore }}"
+                                           onchange="updateTotals()">
+                                </td>
+                                <td class="text-end">
+                                    {% if item.product.price_with_vat_ore %}
+                                    {{ item.product.price_kr|floatformat:2 }} kr
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end line-total" data-product="{{ item.product_id }}">
+                                    {% widthratio item.line_total 100 1 %},{% widthratio item.line_total 1 1|divisibleby:100 %} kr
+                                </td>
+                                <td>
+                                    <button type="submit" 
+                                            name="action" value="remove_item"
+                                            class="btn btn-sm btn-outline-danger"
+                                            onclick="this.form.insertAdjacentHTML('beforeend', '<input type=\'hidden\' name=\'product_id\' value=\'{{ item.product_id }}\'>');"
+                                            title="Fjern fra pakke">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-4">
+                                    <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                    Ingen produkter i pakken ennå
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        {% if bundle_items %}
+                        <tfoot class="table-light">
+                            <tr>
+                                <th colspan="3" class="text-end">Totalt:</th>
+                                <th class="text-end fs-5" id="grand-total">
+                                    {{ total_price|floatformat:0|default:0 }} øre
+                                </th>
+                                <th></th>
+                            </tr>
+                        </tfoot>
+                        {% endif %}
+                    </table>
+                    
+                    {% if bundle_items %}
+                    <div class="p-3 border-top">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Lagre endringer og synkroniser
+                        </button>
+                    </div>
+                    {% endif %}
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Legg til produkt -->
+    <div class="col-lg-4">
+        <div class="card border-success">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-plus-circle"></i> Legg til produkt
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="add_item">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Produkt</label>
+                        {{ add_form.product }}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Antall</label>
+                        {{ add_form.quantity }}
+                    </div>
+                    
+                    <button type="submit" class="btn btn-success w-100">
+                        <i class="bi bi-plus-lg"></i> Legg til i pakke
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Prissammendrag -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-calculator"></i> Prissammendrag
+                </h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm mb-0">
+                    <tr>
+                        <td>Sum innhold:</td>
+                        <td class="text-end fw-bold" id="summary-total">
+                            {% widthratio total_price 100 1 %} kr
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Nåværende pakkepris:</td>
+                        <td class="text-end">
+                            {% if bundle.price_with_vat_ore %}
+                            {{ bundle.price_kr|floatformat:2 }} kr
+                            {% else %}
+                            <span class="text-muted">Ikke satt</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+                
+                <div class="alert alert-info mt-3 mb-0 small">
+                    <i class="bi bi-info-circle"></i>
+                    Pakkeprisen oppdateres automatisk til summen av innholdet når du lagrer.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function updateTotals() {
+    let grandTotal = 0;
+    
+    document.querySelectorAll('input[name^="qty_"]').forEach(input => {
+        const qty = parseInt(input.value) || 0;
+        const price = parseInt(input.dataset.price) || 0;
+        const lineTotal = qty * price;
+        grandTotal += lineTotal;
+    });
+    
+    // Oppdater totalen
+    const totalKr = (grandTotal / 100).toFixed(2).replace('.', ',');
+    document.getElementById('grand-total').textContent = totalKr + ' kr';
+    document.getElementById('summary-total').textContent = totalKr + ' kr';
+}
+</script>
+{% endblock %}

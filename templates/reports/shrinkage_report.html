@@ -1,0 +1,182 @@
+{% extends 'base.html' %}
+
+{% block title %}Svinnrapport{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>
+        <i class="bi bi-trash text-warning"></i> Svinnrapport
+        {% if organization_name %}
+        <small class="text-muted fs-5">- {{ organization_name }}</small>
+        {% endif %}
+    </h1>
+    <a href="{% url 'reports:index' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Tilbake
+    </a>
+</div>
+
+<!-- Periodevalg -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label for="days" class="form-label">Periode</label>
+                <select class="form-select" id="days" name="days">
+                    <option value="7" {% if days == 7 %}selected{% endif %}>Siste 7 dager</option>
+                    <option value="14" {% if days == 14 %}selected{% endif %}>Siste 14 dager</option>
+                    <option value="30" {% if days == 30 %}selected{% endif %}>Siste 30 dager</option>
+                    <option value="90" {% if days == 90 %}selected{% endif %}>Siste 90 dager</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i> Vis
+                </button>
+            </div>
+            <div class="col-md-6 text-end">
+                <span class="text-muted">Fra: {{ start_date|date:"d.m.Y" }}</span>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Oppsummering -->
+<div class="row g-4 mb-4">
+    <div class="col-md-4">
+        <div class="card bg-warning text-dark h-100">
+            <div class="card-body text-center">
+                <h3>{{ total_entries }}</h3>
+                <p class="mb-0">Registreringer</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-danger text-white h-100">
+            <div class="card-body text-center">
+                <h3>{{ total_quantity }}</h3>
+                <p class="mb-0">Enheter tapt</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-dark text-white h-100">
+            <div class="card-body text-center">
+                <h3>{{ total_value_kr|floatformat:0 }} kr</h3>
+                <p class="mb-0">Estimert tap</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Per årsak -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-pie-chart"></i> Per årsak</h5>
+            </div>
+            <div class="card-body">
+                {% if by_reason %}
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Årsak</th>
+                            <th class="text-end">Antall</th>
+                            <th class="text-end">Mengde</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in by_reason %}
+                        <tr>
+                            <td>{{ item.reason }}</td>
+                            <td class="text-end">{{ item.count }}</td>
+                            <td class="text-end">{{ item.total_qty }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted mb-0">Ingen svinn registrert i perioden</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Per produkt -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-box-seam"></i> Per produkt</h5>
+            </div>
+            <div class="card-body">
+                {% if by_product %}
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Produkt</th>
+                            <th class="text-end">Antall</th>
+                            <th class="text-end">Mengde</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in by_product %}
+                        <tr>
+                            <td>{{ item.product__name }}</td>
+                            <td class="text-end">{{ item.count }}</td>
+                            <td class="text-end">{{ item.total_qty }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted mb-0">Ingen svinn registrert i perioden</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Alle registreringer -->
+{% if entries %}
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-list"></i> Alle registreringer</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                <thead>
+                    <tr>
+                        <th>Dato</th>
+                        <th>Produkt</th>
+                        <th>Årsak</th>
+                        <th class="text-end">Mengde</th>
+                        <th class="text-end">Tap (kr)</th>
+                        <th>Registrert av</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in entries %}
+                    <tr>
+                        <td>{{ entry.registered_date|date:"d.m.Y" }}</td>
+                        <td>{{ entry.product.name }}</td>
+                        <td>{{ entry.get_reason_display }}</td>
+                        <td class="text-end text-danger">{{ entry.quantity }}</td>
+                        <td class="text-end">
+                            {% if entry.estimated_loss_ore %}
+                            {% widthratio entry.estimated_loss_ore 100 1 %} kr
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>{{ entry.registered_by.username|default:"-" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+
+{% block title %}Varetelinger{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="bi bi-clipboard-check text-primary"></i> Varetelinger
+        {% if event %}<small class="text-muted">- {{ event.name }}</small>{% endif %}
+    </h2>
+    <a href="{% url 'inventory:stock_count_create' %}" class="btn btn-primary">
+        <i class="bi bi-plus-lg"></i> Ny varetelling
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Navn</th>
+                        <th>Event</th>
+                        <th>Status</th>
+                        <th class="text-center">Deltellinger</th>
+                        <th>Startet</th>
+                        <th>Fullført</th>
+                        <th>Startet av</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for count in counts %}
+                    <tr>
+                        <td>
+                            <strong>{{ count.name }}</strong>
+                            {% if count.location %}
+                            <br><small class="text-muted">{{ count.location }}</small>
+                            {% endif %}
+                        </td>
+                        <td>{{ count.event.name }}</td>
+                        <td>
+                            {% if count.status == 'IN_PROGRESS' %}
+                            <span class="badge bg-warning text-dark">
+                                <i class="bi bi-hourglass-split"></i> Pågår
+                            </span>
+                            {% elif count.status == 'COMPLETED' %}
+                            <span class="badge bg-success">
+                                <i class="bi bi-share"></i> Delt
+                            </span>
+                            {% else %}
+                            <span class="badge bg-secondary">
+                                <i class="bi bi-x-lg"></i> Avbrutt
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% with partial_count=count.partial_counts.count %}
+                            {% if partial_count > 0 %}
+                            <span class="badge bg-info">{{ partial_count }} importert</span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                            {% endwith %}
+                        </td>
+                        <td>{{ count.started_at|date:"d.m.Y H:i" }}</td>
+                        <td>
+                            {% if count.completed_at %}
+                            {{ count.completed_at|date:"d.m.Y H:i" }}
+                            {% else %}-{% endif %}
+                        </td>
+                        <td>{{ count.started_by.username|default:"-" }}</td>
+                        <td class="text-end">
+                            <a href="{% url 'inventory:stock_count_detail' count.pk %}" 
+                               class="btn btn-sm {% if count.status == 'IN_PROGRESS' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+                                {% if count.status == 'IN_PROGRESS' %}
+                                <i class="bi bi-pencil"></i> Fortsett
+                                {% else %}
+                                <i class="bi bi-eye"></i> Vis
+                                {% endif %}
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-5">
+                            <i class="bi bi-clipboard fs-1 d-block mb-2"></i>
+                            Ingen varetelinger registrert
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

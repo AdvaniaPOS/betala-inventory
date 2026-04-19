@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+
+{% block title %}Beholdningsrapport{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>
+        <i class="bi bi-boxes text-success"></i> Beholdningsrapport
+        {% if organization_name %}
+        <small class="text-muted fs-5">- {{ organization_name }}</small>
+        {% endif %}
+    </h1>
+    <a href="{% url 'reports:index' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Tilbake
+    </a>
+</div>
+
+<!-- Oppsummering -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white h-100">
+            <div class="card-body text-center">
+                <h3>{{ total_products }}</h3>
+                <p class="mb-0">Produkter</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white h-100">
+            <div class="card-body text-center">
+                <h3>{{ total_retail_value_kr|floatformat:0 }} kr</h3>
+                <p class="mb-0">Salgsverdi</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white h-100">
+            <div class="card-body text-center">
+                <h3>{{ total_cost_value_kr|floatformat:0 }} kr</h3>
+                <p class="mb-0">Kostverdi</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark h-100">
+            <div class="card-body text-center">
+                <h3>{{ gross_margin_kr|floatformat:0 }} kr</h3>
+                <p class="mb-0">Bruttomargin</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Per kategori -->
+{% for cat_name, cat_data in by_category.items %}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            {% if cat_name %}{{ cat_name }}{% else %}Uten kategori{% endif %}
+        </h5>
+        <span class="badge bg-secondary">{{ cat_data.total_count }} produkter</span>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Produkt</th>
+                        <th>Artikkelgruppe</th>
+                        <th class="text-end">Pris eks. mva</th>
+                        <th class="text-end">Pris inkl. mva</th>
+                        <th class="text-end">Innkjøpspris</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for product in cat_data.items %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'inventory:product_detail' product.betala_product_id %}">
+                                {{ product.name }}
+                            </a>
+                        </td>
+                        <td>
+                            <small class="text-muted">{{ product.article_group_name }}</small>
+                        </td>
+                        <td class="text-end">
+                            {% if product.price_eks_mva_kr %}
+                            {{ product.price_eks_mva_kr|floatformat:2 }} kr
+                            {% else %}-{% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if product.price_kr %}
+                            {{ product.price_kr|floatformat:2 }} kr
+                            {% else %}-{% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if product.purchase_price_kr %}
+                            {{ product.purchase_price_kr|floatformat:2 }} kr
+                            {% else %}-{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-light">
+                    <tr>
+                        <td colspan="3"><strong>Sum {{ cat_name }}</strong></td>
+                        <td class="text-end">
+                            <strong>{{ cat_data.total_value_kr|floatformat:0 }} kr</strong>
+                        </td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+{% empty %}
+<div class="alert alert-info">
+    <i class="bi bi-info-circle"></i> Ingen produkter funnet.
+    {% if not organization_name %}
+    <a href="{% url 'betala:login' %}">Logg inn på Betala</a> for å synkronisere produkter.
+    {% endif %}
+</div>
+{% endfor %}
+
+{% endblock %}

@@ -1,0 +1,483 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ product.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>
+        <i class="bi bi-box text-primary"></i> {{ product.name }}
+    </h1>
+    <div>
+        <a href="{% url 'inventory:product_edit' betala_id=product.betala_product_id %}" class="btn btn-primary">
+            <i class="bi bi-pencil"></i> Rediger
+        </a>
+        <a href="{% url 'inventory:product_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Tilbake til produkter
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Produktinformasjon -->
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-info-circle"></i> Produktinformasjon</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    <tr>
+                        <th style="width: 40%">Navn:</th>
+                        <td>{{ product.name }}</td>
+                    </tr>
+                    <tr>
+                        <th>Kategori:</th>
+                        <td>
+                            {% if product.category_name %}
+                            <span class="badge bg-secondary">{{ product.category_name }}</span>
+                            {% elif product.category %}
+                            <span class="badge" style="background-color: {{ product.category.color|default:'#6c757d' }}">
+                                {{ product.category.name }}
+                            </span>
+                            {% else %}
+                            <span class="text-muted">Ingen kategori</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Artikkelgruppe:</th>
+                        <td>
+                            <small class="text-muted">{{ product.betala_article_group_id }}</small>
+                            {{ product.article_group_name }}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>SKU:</th>
+                        <td>{{ product.sku|default:"-" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Strekkode:</th>
+                        <td>{{ product.barcode|default:"-" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Enhet:</th>
+                        <td>{{ product.unit }}</td>
+                    </tr>
+                    <tr>
+                        <th>Status:</th>
+                        <td>
+                            {% if product.is_active %}
+                            <span class="badge bg-success">Aktiv</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Inaktiv</span>
+                            {% endif %}
+                            {% if product.track_inventory %}
+                            <span class="badge bg-info">Lagerstyrt</span>
+                            {% endif %}
+                            {% if product.betala_is_bundles %}
+                            <span class="badge bg-warning text-dark">
+                                <i class="bi bi-box-seam"></i> Pakke
+                            </span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        
+        {% if product.betala_is_bundles %}
+        <!-- Pakke-innhold -->
+        <div class="card mb-4 border-info">
+            <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-box-seam"></i> Pakke-innhold
+                </h5>
+                <a href="{% url 'inventory:bundle_edit' product.betala_product_id %}" class="btn btn-sm btn-light">
+                    <i class="bi bi-pencil"></i> Rediger pakke
+                </a>
+            </div>
+            <div class="card-body p-0">
+                {% if bundle_items %}
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Produkt</th>
+                            <th class="text-center" style="width: 100px;">Antall</th>
+                            <th class="text-end" style="width: 120px;">Pris</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in bundle_items %}
+                        <tr>
+                            <td>
+                                {% if item.0 %}
+                                <a href="{% url 'inventory:product_detail' item.0.betala_product_id %}">
+                                    {{ item.0.name }}
+                                </a>
+                                {% else %}
+                                <span class="text-muted">
+                                    Ukjent produkt (ID: {{ item.2 }})
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-primary fs-6">{{ item.1 }}</span>
+                            </td>
+                            <td class="text-end">
+                                {% if item.0 and item.0.price_kr %}
+                                {{ item.0.price_kr|floatformat:2 }} kr
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                    Ingen produkter i pakken ennå
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-footer bg-light">
+                <small class="text-muted">
+                    <i class="bi bi-info-circle"></i>
+                    Ved salg av denne pakken trekkes innholdet automatisk fra lager.
+                </small>
+            </div>
+        </div>
+        {% endif %}
+        
+        {% if containing_bundles %}
+        <!-- Inngår i pakker -->
+        <div class="card mb-4 border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">
+                    <i class="bi bi-box-seam"></i> Inngår i pakker
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush">
+                    {% for bundle in containing_bundles %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <a href="{% url 'inventory:product_detail' bundle.betala_product_id %}">
+                            <strong>{{ bundle.name }}</strong>
+                        </a>
+                        <span class="badge bg-info">
+                            {{ bundle.price_kr|floatformat:2 }} kr
+                        </span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <div class="card-footer bg-light">
+                <small class="text-muted">
+                    <i class="bi bi-info-circle"></i>
+                    Endringer i dette produktet vil automatisk oppdatere pakkene.
+                </small>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Priser -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-currency-exchange"></i> Priser</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    <tr>
+                        <th style="width: 40%">Salgspris:</th>
+                        <td class="fs-5">
+                            {% if product.betala_open_price %}
+                            <span class="badge bg-info fs-6">
+                                <i class="bi bi-calculator"></i> Åpen pris
+                            </span>
+                            {% elif product.price_kr %}
+                            <strong>{{ product.price_kr|floatformat:2 }} kr</strong>
+                            <small class="text-muted">(inkl. mva)</small>
+                            {% else %}
+                            <span class="text-muted">Ikke satt</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% if not product.betala_open_price %}
+                    <tr>
+                        <th>Pris eks. mva:</th>
+                        <td>
+                            {% if product.price_eks_mva_kr %}
+                            {{ product.price_eks_mva_kr|floatformat:2 }} kr
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>MVA:</th>
+                        <td>
+                            {% if product.vat_kr %}
+                            {{ product.vat_kr|floatformat:2 }} kr
+                            <small class="text-muted">({{ product.vat_percent|floatformat:0 }}%)</small>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <th>MVA-sats:</th>
+                        <td>{{ product.vat_percent|floatformat:0 }}%</td>
+                    </tr>
+                    {% endif %}
+                    <tr>
+                        <th>Innkjøpspris:</th>
+                        <td>
+                            {% if product.purchase_price_kr %}
+                            {{ product.purchase_price_kr|floatformat:2 }} kr
+                            <small class="text-muted">(eks. mva)</small>
+                            {% else %}
+                            <span class="text-muted">Ikke satt</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Leverandør -->
+        {% if product.supplier %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-truck"></i> Leverandør</h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-1"><strong>{{ product.supplier.name }}</strong></p>
+                {% if product.supplier.contact_person %}
+                <p class="mb-1 text-muted">{{ product.supplier.contact_person }}</p>
+                {% endif %}
+                {% if product.supplier.phone %}
+                <p class="mb-0"><i class="bi bi-telephone"></i> {{ product.supplier.phone }}</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Lagerbeholdning og statistikk -->
+    <div class="col-md-6">
+        <!-- Lagerbeholdning -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-stack"></i> Lagerbeholdning
+                    {% if event %}
+                    <small class="text-muted">- {{ event.name }}</small>
+                    {% endif %}
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if stock_level %}
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="display-4 {% if stock_level.is_low_stock %}text-danger{% else %}text-success{% endif %}">
+                            {{ stock_level.quantity }}
+                        </span>
+                        <span class="text-muted">{{ product.unit }}</span>
+                    </div>
+                    <div class="text-end">
+                        {% if stock_level.is_low_stock %}
+                        <span class="badge bg-danger fs-6">
+                            <i class="bi bi-exclamation-triangle"></i> Lav beholdning
+                        </span>
+                        {% else %}
+                        <span class="badge bg-success fs-6">
+                            <i class="bi bi-check-circle"></i> OK
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+                <hr>
+                <table class="table table-sm table-borderless mb-0">
+                    <tr>
+                        <th>Minimumsnivå:</th>
+                        <td>{{ product.min_stock_level }} {{ product.unit }}</td>
+                    </tr>
+                    {% if stock_level.location %}
+                    <tr>
+                        <th>Lokasjon:</th>
+                        <td>{{ stock_level.location }}</td>
+                    </tr>
+                    {% endif %}
+                </table>
+                {% elif event %}
+                <div class="text-center py-4 text-muted">
+                    <i class="bi bi-inbox fs-1"></i>
+                    <p class="mb-0">Ingen beholdning registrert for dette eventet</p>
+                </div>
+                {% else %}
+                <div class="text-center py-4 text-muted">
+                    <i class="bi bi-calendar-x fs-1"></i>
+                    <p class="mb-0">Velg et event for å se lagerbeholdning</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Beskrivelse -->
+        {% if product.description %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-text-paragraph"></i> Beskrivelse</h5>
+            </div>
+            <div class="card-body">
+                {{ product.description|linebreaks }}
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Betala-info -->
+        {% if product.betala_product_id %}
+        <div class="card mb-4">
+            <div class="card-header bg-light">
+                <h6 class="mb-0"><i class="bi bi-cloud"></i> Betala-kobling</h6>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm table-borderless mb-0">
+                    <tr>
+                        <th>Produkt ID:</th>
+                        <td>{{ product.betala_product_id }}</td>
+                    </tr>
+                    {% if product.betala_previous_ids %}
+                    <tr>
+                        <th>Tidligere IDer:</th>
+                        <td>
+                            <small class="text-muted">
+                                {% for prev_id in product.betala_previous_ids %}
+                                    {{ prev_id }}{% if not forloop.last %}, {% endif %}
+                                {% endfor %}
+                            </small>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    <tr>
+                        <th>Org ID:</th>
+                        <td>{{ product.betala_organization_id }}</td>
+                    </tr>
+                    <tr>
+                        <th>Artikkelgruppe:</th>
+                        <td>{{ product.betala_article_group_id }}</td>
+                    </tr>
+                    <tr>
+                        <th>Farge (tag):</th>
+                        <td>
+                            {% if product.betala_tag == 0 %}🔵 Lyseblå{% endif %}
+                            {% if product.betala_tag == 1 %}🔴 Rød/rosa{% endif %}
+                            {% if product.betala_tag == 2 %}🔵 Mørkeblå{% endif %}
+                            {% if product.betala_tag == 3 %}🟢 Mintgrønn{% endif %}
+                            {% if product.betala_tag == 4 %}🔵 Teal{% endif %}
+                            {% if product.betala_tag == 5 %}🟣 Lilla{% endif %}
+                            {% if product.betala_tag == 6 %}🟠 Oransje{% endif %}
+                            {% if product.betala_tag == 7 %}🔵 Blålilla{% endif %}
+                            {% if product.betala_tag == 8 %}⚫ Grå{% endif %}
+                            {% if product.betala_tag == 9 %}💗 Rosa{% endif %}
+                            {% if product.betala_tag == 10 %}⬛ Svart{% endif %}
+                            {% if product.betala_tag == 11 %}🟢 Limegrønn{% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Bar-utskrift:</th>
+                        <td>
+                            {% if product.betala_is_bar_printing %}
+                            <i class="bi bi-check-circle text-success"></i> Ja
+                            {% else %}
+                            <i class="bi bi-x-circle text-muted"></i> Nei
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Kjøkken-utskrift:</th>
+                        <td>
+                            {% if product.betala_is_kitchen_printing %}
+                            <i class="bi bi-check-circle text-success"></i> Ja
+                            {% else %}
+                            <i class="bi bi-x-circle text-muted"></i> Nei
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% if product.betala_general_ledger_account %}
+                    <tr>
+                        <th>Hovedbokskonto:</th>
+                        <td>{{ product.betala_general_ledger_account }}</td>
+                    </tr>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Transaksjonshistorikk -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-clock-history"></i> Siste transaksjoner</h5>
+        <a href="{% url 'inventory:transaction_list' %}?product={{ product.pk }}" class="btn btn-sm btn-outline-primary">
+            Vis alle
+        </a>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Dato</th>
+                    <th>Type</th>
+                    <th class="text-end">Antall</th>
+                    <th>Referanse</th>
+                    <th>Registrert av</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for tx in transactions %}
+                <tr>
+                    <td>{{ tx.transaction_date|date:"d.m.Y H:i" }}</td>
+                    <td>
+                        {% if tx.transaction_type == 'RECEIVING' %}
+                        <span class="badge bg-success">Varemottak</span>
+                        {% elif tx.transaction_type == 'SALE' %}
+                        <span class="badge bg-primary">Salg</span>
+                        {% elif tx.transaction_type == 'SHRINKAGE' %}
+                        <span class="badge bg-warning text-dark">Svinn</span>
+                        {% elif tx.transaction_type == 'WASTE' %}
+                        <span class="badge bg-danger">Kast</span>
+                        {% elif tx.transaction_type == 'STAFF' %}
+                        <span class="badge bg-info">Personal</span>
+                        {% elif tx.transaction_type == 'COUNT' %}
+                        <span class="badge bg-secondary">Varetelling</span>
+                        {% else %}
+                        <span class="badge bg-secondary">{{ tx.get_transaction_type_display }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        {% if tx.quantity >= 0 %}
+                        <span class="text-success">+{{ tx.quantity }}</span>
+                        {% else %}
+                        <span class="text-danger">{{ tx.quantity }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ tx.reference|default:"-" }}</td>
+                    <td>{{ tx.created_by.username|default:"-" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-4">
+                        Ingen transaksjoner registrert
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,214 @@
+{% extends 'base.html' %}
+
+{% block title %}Dagsrapport - {{ report_date|date:"d.m.Y" }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>
+        <i class="bi bi-calendar-day text-primary"></i> Dagsrapport
+        {% if organization_name %}
+        <small class="text-muted fs-5">- {{ organization_name }}</small>
+        {% endif %}
+    </h1>
+    <a href="{% url 'reports:index' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Tilbake
+    </a>
+</div>
+
+<!-- Datovelger -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label for="date" class="form-label">Velg dato</label>
+                <input type="date" class="form-control" id="date" name="date" 
+                       value="{{ report_date|date:'Y-m-d' }}">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i> Vis
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Oppsummering -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white h-100">
+            <div class="card-body text-center">
+                <h3>{{ total_transactions }}</h3>
+                <p class="mb-0">Transaksjoner</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white h-100">
+            <div class="card-body text-center">
+                <h3>{{ top_sales|length }}</h3>
+                <p class="mb-0">Produkter solgt</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white h-100">
+            <div class="card-body text-center">
+                <h3>{{ receiving.count }}</h3>
+                <p class="mb-0">Varemottak</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark h-100">
+            <div class="card-body text-center">
+                <h3>{{ shrinkage.count }}</h3>
+                <p class="mb-0">Svinn</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Transaksjoner per type -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Per transaksjonstype</h5>
+            </div>
+            <div class="card-body">
+                {% if by_type %}
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th class="text-end">Antall</th>
+                            <th class="text-end">Mengde</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in by_type %}
+                        <tr>
+                            <td>{{ item.transaction_type }}</td>
+                            <td class="text-end">{{ item.count }}</td>
+                            <td class="text-end">{{ item.total_qty }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted mb-0">Ingen transaksjoner denne dagen</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Top solgte produkter -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-trophy"></i> Top solgte produkter</h5>
+            </div>
+            <div class="card-body">
+                {% if top_sales %}
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Produkt</th>
+                            <th class="text-end">Solgt</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in top_sales %}
+                        <tr>
+                            <td>{{ item.product__name }}</td>
+                            <td class="text-end">{{ item.total_sold|floatformat:0 }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted mb-0">Ingen salg denne dagen</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if betala_transactions %}
+<!-- Betala-transaksjoner -->
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-cash-stack"></i> Betala-transaksjoner</h5>
+    </div>
+    <div class="card-body">
+        <table class="table table-sm">
+            <thead>
+                <tr>
+                    <th>Sekvensnr</th>
+                    <th>Tidspunkt</th>
+                    <th class="text-end">Varer</th>
+                    <th class="text-end">Beløp</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for trans in betala_transactions %}
+                <tr{% if trans.is_void %} class="table-danger"{% endif %}>
+                    <td>{{ trans.sequence_number }}</td>
+                    <td>{{ trans.finalized_at|date:"H:i" }}</td>
+                    <td class="text-end">{{ trans.total_items }}</td>
+                    <td class="text-end">{{ trans.total_amount_ore|floatformat:0 }} øre</td>
+                    <td>
+                        {% if trans.is_void %}
+                        <span class="badge bg-danger">Annullert</span>
+                        {% else %}
+                        <span class="badge bg-success">OK</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Alle transaksjoner -->
+{% if transactions %}
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-list"></i> Alle transaksjoner</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                <thead>
+                    <tr>
+                        <th>Tidspunkt</th>
+                        <th>Produkt</th>
+                        <th>Type</th>
+                        <th class="text-end">Mengde</th>
+                        <th>Registrert av</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for trans in transactions %}
+                    <tr>
+                        <td>{{ trans.transaction_date|date:"H:i" }}</td>
+                        <td>{{ trans.product.name }}</td>
+                        <td>{{ trans.get_transaction_type_display }}</td>
+                        <td class="text-end {% if trans.quantity < 0 %}text-danger{% else %}text-success{% endif %}">
+                            {{ trans.quantity }}
+                        </td>
+                        <td>{{ trans.created_by.username|default:"-" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

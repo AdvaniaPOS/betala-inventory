@@ -1,0 +1,325 @@
+﻿{% extends 'base.html' %}
+
+{% block title %}Varetelling: {{ count.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2>
+            {% if count.is_imported %}
+            <i class="bi bi-list-check text-info"></i>
+            <span class="badge bg-info">Importert telling</span>
+            {% else %}
+            <i class="bi bi-clipboard-check text-primary"></i>
+            {% endif %}
+            {{ count.name }}
+        </h2>
+        <p class="text-muted mb-0">
+            {{ count.event.name }}
+            {% if count.location %} &middot; {{ count.location }}{% endif %}
+            {% if count.is_imported and count.parent_count %}
+            <br><small>Importert til: <a href="{% url 'inventory:stock_count_detail' count.parent_count.pk %}">{{ count.parent_count.name }}</a></small>
+            {% endif %}
+        </p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        {% if count.status == 'IN_PROGRESS' %}
+        <a href="{% url 'inventory:stock_count_mobile' count.pk %}" class="btn btn-success">
+            <i class="bi bi-phone"></i> Mobiltelling
+        </a>
+        {% endif %}
+        {% if count.status != 'IN_PROGRESS' %}
+        <div class="dropdown">
+            <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                <i class="bi bi-printer"></i> Skriv ut
+            </button>
+            <ul class="dropdown-menu">
+                <li>
+                    <a class="dropdown-item" href="{% url 'reports:stock_count_pdf' count.pk %}">
+                        <i class="bi bi-file-pdf"></i> Samlet rapport
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item" href="{% url 'reports:stock_count_pdf' count.pk %}?format=partial">
+                        <i class="bi bi-file-pdf"></i> Sortert per deltelling
+                    </a>
+                </li>
+            </ul>
+        </div>
+        {% endif %}
+        {% if count.status == 'IN_PROGRESS' %}
+        <span class="badge bg-warning text-dark fs-5">
+            <i class="bi bi-hourglass-split"></i> Pågår
+        </span>
+        {% elif count.status == 'COMPLETED' %}
+        <span class="badge bg-success fs-5">
+            <i class="bi bi-share"></i> Delt
+        </span>
+        {% elif count.status == 'IMPORTED' %}
+        <span class="badge bg-info fs-5">
+            <i class="bi bi-box-arrow-in-down"></i> Importert
+        </span>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Fremdrift -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <span>Fremdrift: {{ counted }} av {{ total }} produkter talt</span>
+            <span class="fw-bold">{{ progress|floatformat:0 }}%</span>
+        </div>
+        <div class="progress" style="height: 25px;">
+            <div class="progress-bar bg-success" role="progressbar" 
+                 style="width: {{ progress }}%;" 
+                 aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100">
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if count.status == 'IN_PROGRESS' %}
+{% if available_for_import %}
+<div class="card mb-4 border-info">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0">
+            <i class="bi bi-box-arrow-in-down"></i> Tilgjengelige tellinger for import
+        </h5>
+    </div>
+    <div class="card-body">
+        <p class="text-muted mb-3">
+            Velg tellinger du vil importere til denne hovedtellingen. Telletallene vil bli summert.
+        </p>
+        <form method="post" action="{% url 'inventory:import_partial_counts' count.pk %}">
+            {% csrf_token %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-3">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 40px;">
+                                <input type="checkbox" class="form-check-input" id="selectAll" 
+                                       onclick="toggleAll(this)">
+                            </th>
+                            <th>Navn</th>
+                            <th>Lokasjon</th>
+                            <th>Delt av</th>
+                            <th>Delt</th>
+                            <th class="text-center">Produkter talt</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for avail in available_for_import %}
+                        <tr>
+                            <td>
+                                <input type="checkbox" class="form-check-input import-check" 
+                                       name="import_counts" value="{{ avail.pk }}">
+                            </td>
+                            <td>
+                                <a href="{% url 'inventory:stock_count_detail' avail.pk %}" target="_blank">
+                                    <strong>{{ avail.name }}</strong>
+                                </a>
+                            </td>
+                            <td>{{ avail.location|default:"-" }}</td>
+                            <td>{{ avail.completed_by.username|default:avail.started_by.username|default:"-" }}</td>
+                            <td>{{ avail.completed_at|date:"d.m.Y H:i" }}</td>
+                            <td class="text-center">
+                                <span class="badge bg-secondary">
+                                    {{ avail.lines.count }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <button type="submit" class="btn btn-info">
+                <i class="bi bi-box-arrow-in-down"></i> Importer valgte tellinger
+            </button>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endif %}
+
+{% if partial_counts %}
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="bi bi-check-circle"></i> Importerte tellinger
+        </h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Navn</th>
+                        <th>Lokasjon</th>
+                        <th>Talt av</th>
+                        <th>Importert</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for partial in partial_counts %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'inventory:stock_count_detail' partial.pk %}">
+                                <strong>{{ partial.name }}</strong>
+                            </a>
+                            <span class="badge bg-info ms-2">Importert</span>
+                        </td>
+                        <td>{{ partial.location|default:"-" }}</td>
+                        <td>{{ partial.completed_by.username|default:partial.started_by.username|default:"-" }}</td>
+                        <td>{{ partial.updated_at|date:"d.m.Y H:i" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<form method="post">
+    {% csrf_token %}
+    
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Produkter å telle</h5>
+            {% if count.status == 'IN_PROGRESS' %}
+            <div>
+                <button type="submit" name="action" value="save_counts" class="btn btn-outline-primary">
+                    <i class="bi bi-save"></i> Lagre
+                </button>
+            </div>
+            {% endif %}
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Produkt</th>
+                            <th>Kategori</th>
+                            <th class="text-center">Forventet</th>
+                            <th class="text-center">Talt</th>
+                            <th class="text-center">Avvik</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for line in lines %}
+                        <tr class="{% if line.variance and line.variance != 0 %}table-warning{% endif %}">
+                            <td>
+                                <strong>{{ line.product.name }}</strong>
+                                {% if line.product.sku %}
+                                <br><small class="text-muted">{{ line.product.sku }}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if line.product.category %}
+                                <span class="badge bg-secondary">{{ line.product.category.name }}</span>
+                                {% else %}-{% endif %}
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-secondary fs-6">{{ line.expected_quantity }}</span>
+                            </td>
+                            <td class="text-center">
+                                {% if count.status == 'IN_PROGRESS' %}
+                                <input type="number" 
+                                       name="counted_{{ line.pk }}" 
+                                       value="{{ line.counted_quantity|default:'' }}"
+                                       class="form-control form-control-lg text-center"
+                                       style="max-width: 100px; margin: 0 auto;"
+                                       min="0"
+                                       placeholder="?">
+                                {% else %}
+                                <span class="badge bg-primary fs-6">{{ line.counted_quantity|default:"-" }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                {% if line.counted_quantity is not None %}
+                                    {% with variance=line.variance %}
+                                    {% if variance > 0 %}
+                                    <span class="badge bg-success fs-6">+{{ variance }}</span>
+                                    {% elif variance < 0 %}
+                                    <span class="badge bg-danger fs-6">{{ variance }}</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary fs-6">0</span>
+                                    {% endif %}
+                                    {% endwith %}
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if line.counted_quantity is not None %}
+                                <i class="bi bi-check-circle-fill text-success"></i>
+                                <small class="text-muted">{{ line.counted_at|date:"H:i" }}</small>
+                                {% else %}
+                                <i class="bi bi-circle text-muted"></i>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-5">
+                                Ingen produkter å telle
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    {% if count.status == 'IN_PROGRESS' %}
+    <div class="mt-4 d-flex justify-content-between">
+        <div>
+            <a href="{% url 'inventory:stock_count_list' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Tilbake
+            </a>
+        </div>
+        <div>
+            <button type="submit" name="action" value="share" 
+                    class="btn btn-info btn-lg me-2"
+                    onclick="return confirm('Del telling?');">
+                <i class="bi bi-share"></i> Del telling
+            </button>
+            <button type="submit" name="action" value="finalize" 
+                    class="btn btn-success btn-lg"
+                    onclick="return confirm('Fullfør varetelling?');">
+                <i class="bi bi-check-lg"></i> Fullfør varetelling
+            </button>
+        </div>
+    </div>
+    {% endif %}
+</form>
+
+{% if count.status == 'IN_PROGRESS' %}
+<form method="post" action="{% url 'inventory:stock_count_delete' count.pk %}" class="mt-3">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-outline-danger"
+            onclick="return confirm('Slett denne tellingen?\n\nDette kan ikke angres.');">
+        <i class="bi bi-trash"></i> Slett telling
+    </button>
+</form>
+{% else %}
+<div class="mt-4">
+    <a href="{% url 'inventory:stock_count_list' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Tilbake til liste
+    </a>
+</div>
+{% endif %}
+
+<script>
+function toggleAll(checkbox) {
+    var checkboxes = document.querySelectorAll('.import-check');
+    checkboxes.forEach(function(cb) {
+        cb.checked = checkbox.checked;
+    });
+}
+</script>
+{% endblock %}

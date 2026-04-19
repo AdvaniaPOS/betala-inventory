@@ -1,0 +1,284 @@
+{% extends 'base.html' %}
+
+{% block title %}Innkjøpsordre {{ order.order_number }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>
+        <i class="bi bi-cart-plus text-primary"></i> 
+        Innkjøpsordre {{ order.order_number }}
+    </h1>
+    <a href="{% url 'inventory:purchase_order_list' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Tilbake til liste
+    </a>
+</div>
+
+<!-- Status og handlinger -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row align-items-center">
+            <div class="col-md-4">
+                <h5 class="mb-0">Status: 
+                    {% if order.status == 'DRAFT' %}
+                    <span class="badge bg-secondary fs-6">Utkast</span>
+                    {% elif order.status == 'ORDERED' %}
+                    <span class="badge bg-primary fs-6">Bestilt</span>
+                    {% elif order.status == 'PARTIAL' %}
+                    <span class="badge bg-warning text-dark fs-6">Delvis mottatt</span>
+                    {% elif order.status == 'RECEIVED' %}
+                    <span class="badge bg-success fs-6">Fullstendig mottatt</span>
+                    {% elif order.status == 'CANCELLED' %}
+                    <span class="badge bg-danger fs-6">Kansellert</span>
+                    {% endif %}
+                </h5>
+            </div>
+            <div class="col-md-4 text-center">
+                <div class="progress" style="height: 25px;">
+                    <div class="progress-bar 
+                        {% if order.receive_progress_percent == 100 %}bg-success
+                        {% elif order.receive_progress_percent > 0 %}bg-warning
+                        {% else %}bg-secondary{% endif %}" 
+                        role="progressbar" 
+                        style="width: {{ order.receive_progress_percent }}%">
+                        {{ order.receive_progress_percent }}% mottatt
+                    </div>
+                </div>
+                <small class="text-muted">{{ order.total_received }} av {{ order.total_ordered }} enheter</small>
+            </div>
+            <div class="col-md-4 text-end">
+                <div class="btn-group">
+                    {% if order.status == 'DRAFT' %}
+                    <a href="{% url 'inventory:purchase_order_edit' order.pk %}" class="btn btn-outline-primary">
+                        <i class="bi bi-pencil"></i> Rediger
+                    </a>
+                    <a href="{% url 'inventory:purchase_order_mark_ordered' order.pk %}" 
+                       class="btn btn-primary"
+                       onclick="return confirm('Merk som bestilt?')">
+                        <i class="bi bi-send"></i> Merk som bestilt
+                    </a>
+                    {% endif %}
+                    
+                    {% if order.status in 'ORDERED,PARTIAL' %}
+                    <a href="{% url 'inventory:purchase_order_receive' order.pk %}" class="btn btn-success">
+                        <i class="bi bi-box-arrow-in-down"></i> Motta varer
+                    </a>
+                    <a href="{% url 'inventory:purchase_order_edit' order.pk %}" class="btn btn-outline-primary">
+                        <i class="bi bi-pencil"></i> Rediger
+                    </a>
+                    {% endif %}
+                    
+                    {% if order.status == 'PARTIAL' %}
+                    <a href="{% url 'inventory:purchase_order_close' order.pk %}" 
+                       class="btn btn-warning"
+                       onclick="return confirm('Avslutt ordren og fjern gjenstående enheter fra bestillingen? Dette kan ikke angres.')">
+                        <i class="bi bi-check-circle"></i> Avslutt ordre
+                    </a>
+                    {% endif %}
+                    
+                    {% if order.status not in 'RECEIVED,CANCELLED' %}
+                    <a href="{% url 'inventory:purchase_order_cancel' order.pk %}" 
+                       class="btn btn-outline-danger"
+                       onclick="return confirm('Er du sikker på at du vil kansellere denne ordren?')">
+                        <i class="bi bi-x-circle"></i> Kanseller
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Ordreinformasjon -->
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-info-circle"></i> Ordreinformasjon</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    <tr>
+                        <th style="width: 40%">Ordrenummer:</th>
+                        <td>{{ order.order_number }}</td>
+                    </tr>
+                    <tr>
+                        <th>Leverandørreferanse:</th>
+                        <td>{{ order.supplier_reference|default:"-" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Event:</th>
+                        <td>{{ order.event.name }}</td>
+                    </tr>
+                    <tr>
+                        <th>Leverandør:</th>
+                        <td>{{ order.supplier.name }}</td>
+                    </tr>
+                    <tr>
+                        <th>Opprettet:</th>
+                        <td>{{ order.created_at|date:"d.m.Y H:i" }} av {{ order.created_by.username|default:"System" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Bestilt:</th>
+                        <td>{{ order.order_date|date:"d.m.Y"|default:"Ikke bestilt ennå" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Forventet levering:</th>
+                        <td>{{ order.expected_delivery|date:"d.m.Y"|default:"-" }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Totaler -->
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-calculator"></i> Totaler</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    <tr>
+                        <th style="width: 50%">Antall linjer:</th>
+                        <td class="text-end">{{ order.total_items }}</td>
+                    </tr>
+                    <tr>
+                        <th>Bestilt antall:</th>
+                        <td class="text-end">{{ order.total_ordered }} enheter</td>
+                    </tr>
+                    <tr>
+                        <th>Mottatt antall:</th>
+                        <td class="text-end">{{ order.total_received }} enheter</td>
+                    </tr>
+                    <tr>
+                        <th>Gjenstående:</th>
+                        <td class="text-end">{{ order.total_ordered|add:"-"|add:order.total_received|default:order.total_ordered }} enheter</td>
+                    </tr>
+                    <tr class="table-light">
+                        <th class="fs-5">Total kostnad:</th>
+                        <td class="text-end fs-5 fw-bold">{{ order.total_cost_kr|floatformat:2 }} kr</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        
+        {% if order.notes %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-sticky"></i> Notater</h5>
+            </div>
+            <div class="card-body">
+                {{ order.notes|linebreaks }}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Ordrelinjer -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-list-ul"></i> Ordrelinjer</h5>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Produkt</th>
+                    <th class="text-end">Bestilt</th>
+                    <th class="text-end">Mottatt</th>
+                    <th class="text-end">Gjenstår</th>
+                    <th class="text-end">Enhetspris</th>
+                    <th class="text-end">Linjepris</th>
+                    <th class="text-center">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for line in lines %}
+                <tr {% if line.is_fully_received %}class="table-success"{% endif %}>
+                    <td>
+                        <strong>{{ line.product.name }}</strong>
+                        {% if line.product.sku %}<br><small class="text-muted">{{ line.product.sku }}</small>{% endif %}
+                    </td>
+                    <td class="text-end">{{ line.quantity_ordered }}</td>
+                    <td class="text-end">{{ line.quantity_received }}</td>
+                    <td class="text-end">{{ line.remaining_quantity }}</td>
+                    <td class="text-end">{{ line.unit_cost_kr|floatformat:2 }} kr</td>
+                    <td class="text-end">{{ line.line_total_ore|divisibleby:100|floatformat:2 }} kr</td>
+                    <td class="text-center">
+                        {% if line.is_fully_received %}
+                        <span class="badge bg-success"><i class="bi bi-check-circle"></i> Mottatt</span>
+                        {% elif line.quantity_received > 0 %}
+                        <span class="badge bg-warning text-dark">Delvis</span>
+                        {% else %}
+                        <span class="badge bg-secondary">Venter</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% if line.notes %}
+                <tr class="table-light">
+                    <td colspan="7">
+                        <small><i class="bi bi-chat-text"></i> {{ line.notes }}</small>
+                    </td>
+                </tr>
+                {% endif %}
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted">Ingen ordrelinjer</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot class="table-light">
+                <tr>
+                    <th>Totalt</th>
+                    <th class="text-end">{{ order.total_ordered }}</th>
+                    <th class="text-end">{{ order.total_received }}</th>
+                    <th class="text-end">-</th>
+                    <th class="text-end">-</th>
+                    <th class="text-end fw-bold">{{ order.total_cost_kr|floatformat:2 }} kr</th>
+                    <th></th>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+
+<!-- Relaterte varemottak -->
+{% if receiving_orders %}
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-truck"></i> Varemottak fra denne ordren</h5>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Mottak #</th>
+                    <th>Dato</th>
+                    <th>Følgeseddel</th>
+                    <th>Mottatt av</th>
+                    <th>Antall linjer</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ro in receiving_orders %}
+                <tr>
+                    <td>{{ ro.pk }}</td>
+                    <td>{{ ro.received_date|date:"d.m.Y" }}</td>
+                    <td>{{ ro.delivery_note|default:"-" }}</td>
+                    <td>{{ ro.received_by.username|default:"-" }}</td>
+                    <td>{{ ro.lines.count }}</td>
+                    <td>
+                        <a href="{% url 'inventory:receiving_detail' ro.pk %}" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-eye"></i> Vis
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

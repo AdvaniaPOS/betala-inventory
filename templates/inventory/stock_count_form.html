@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Ny varetelling{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">
+                    <i class="bi bi-clipboard-check text-primary"></i> Start ny varetelling
+                </h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>Slik fungerer varetelling:</strong>
+                    <ol class="mb-0 mt-2">
+                        <li>Start tellingen - alle produkter med lagerbeholdning legges til automatisk</li>
+                        <li>Tell hvert produkt og registrer faktisk antall</li>
+                        <li>Fullfør tellingen - avvik oppdateres automatisk i lagerbeholdningen</li>
+                    </ol>
+                </div>
+                
+                <form method="post">
+                    {% csrf_token %}
+                    {% crispy form %}
+                </form>
+            </div>
+        </div>
+        
+        <div class="mt-3">
+            <a href="{% url 'inventory:stock_count_list' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Tilbake til liste
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

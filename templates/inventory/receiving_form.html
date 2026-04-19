@@ -1,0 +1,221 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Nytt varemottak{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-truck text-primary"></i> Nytt varemottak</h1>
+    <a href="{% url 'inventory:receiving_list' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Tilbake
+    </a>
+</div>
+
+<form method="post" class="needs-validation" novalidate>
+    {% csrf_token %}
+    
+    <!-- Vis generelle feil -->
+    {% if form.non_field_errors %}
+    <div class="alert alert-danger">
+        {{ form.non_field_errors }}
+    </div>
+    {% endif %}
+    
+    {% if formset.non_form_errors %}
+    <div class="alert alert-danger">
+        {{ formset.non_form_errors }}
+    </div>
+    {% endif %}
+    
+    <!-- Hovedinformasjon -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-info-circle"></i> Mottaksinformasjon</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.event.id_for_label }}" class="form-label">Event *</label>
+                    {{ form.event }}
+                    {% if form.event.errors %}
+                    <div class="invalid-feedback d-block">{{ form.event.errors.0 }}</div>
+                    {% endif %}
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.supplier.id_for_label }}" class="form-label">Leverandør *</label>
+                    {{ form.supplier }}
+                    {% if form.supplier.errors %}
+                    <div class="invalid-feedback d-block">{{ form.supplier.errors.0 }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label for="{{ form.order_number.id_for_label }}" class="form-label">Ordrenummer</label>
+                    {{ form.order_number }}
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="{{ form.delivery_note.id_for_label }}" class="form-label">Følgeseddel</label>
+                    {{ form.delivery_note }}
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="{{ form.received_date.id_for_label }}" class="form-label">Mottaksdato *</label>
+                    {{ form.received_date }}
+                    {% if form.received_date.errors %}
+                    <div class="invalid-feedback d-block">{{ form.received_date.errors.0 }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="mb-3">
+                <label for="{{ form.notes.id_for_label }}" class="form-label">Notater</label>
+                {{ form.notes }}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Varelinjer -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-list-ul"></i> Varelinjer</h5>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="add-line">
+                <i class="bi bi-plus-circle"></i> Legg til linje
+            </button>
+        </div>
+        <div class="card-body">
+            {{ formset.management_form }}
+            
+            <div class="table-responsive">
+                <table class="table table-borderless" id="lines-table">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 30%">Produkt</th>
+                            <th style="width: 12%">Forventet</th>
+                            <th style="width: 12%">Mottatt</th>
+                            <th style="width: 15%">Enhetskost (kr eks. mva)</th>
+                            <th style="width: 15%">Batch</th>
+                            <th style="width: 12%">Utløp</th>
+                            <th style="width: 4%"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="formset-container">
+                        {% for line_form in formset %}
+                        <tr class="line-row {% if line_form.errors %}table-danger{% endif %}">
+                            <td>
+                                {{ line_form.id }}
+                                {{ line_form.product }}
+                                {% if line_form.product.errors %}
+                                <small class="text-danger">{{ line_form.product.errors.0 }}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {{ line_form.quantity_expected }}
+                                {% if line_form.quantity_expected.errors %}
+                                <small class="text-danger">{{ line_form.quantity_expected.errors.0 }}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {{ line_form.quantity_received }}
+                                {% if line_form.quantity_received.errors %}
+                                <small class="text-danger">{{ line_form.quantity_received.errors.0 }}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {{ line_form.unit_cost_kr }}
+                                {% if line_form.unit_cost_kr.errors %}
+                                <small class="text-danger">{{ line_form.unit_cost_kr.errors.0 }}</small>
+                                {% endif %}
+                            </td>
+                            <td>{{ line_form.batch_number }}</td>
+                            <td>{{ line_form.expiry_date }}</td>
+                            <td>
+                                <div class="form-check">
+                                    {{ line_form.DELETE }}
+                                </div>
+                            </td>
+                        </tr>
+                        {% if line_form.non_field_errors %}
+                        <tr class="table-danger">
+                            <td colspan="7"><small class="text-danger">{{ line_form.non_field_errors }}</small></td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="text-muted small">
+                <i class="bi bi-info-circle"></i> 
+                Merk "Slett" for å fjerne en linje. Tomme linjer blir ignorert.
+            </div>
+        </div>
+    </div>
+    
+    <!-- Submit -->
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary btn-lg">
+            <i class="bi bi-check-circle"></i> Registrer varemottak
+        </button>
+        <a href="{% url 'inventory:receiving_list' %}" class="btn btn-outline-secondary btn-lg">
+            Avbryt
+        </a>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .line-row select, .line-row input {
+        width: 100%;
+    }
+    #lines-table td {
+        vertical-align: middle;
+    }
+    .form-check-input[type="checkbox"] {
+        width: 1.2em;
+        height: 1.2em;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const container = document.getElementById('formset-container');
+    const addBtn = document.getElementById('add-line');
+    const totalForms = document.getElementById('id_lines-TOTAL_FORMS');
+    
+    addBtn.addEventListener('click', function() {
+        const formCount = parseInt(totalForms.value);
+        const lastRow = container.querySelector('.line-row:last-child');
+        
+        if (lastRow) {
+            const newRow = lastRow.cloneNode(true);
+            
+            // Oppdater form indeks
+            newRow.innerHTML = newRow.innerHTML.replace(
+                /lines-\d+-/g, 
+                'lines-' + formCount + '-'
+            );
+            newRow.innerHTML = newRow.innerHTML.replace(
+                /lines-\d+/g, 
+                'lines-' + formCount
+            );
+            
+            // Tøm verdier
+            newRow.querySelectorAll('input[type="text"], input[type="number"], input[type="date"]').forEach(input => {
+                input.value = '';
+            });
+            newRow.querySelectorAll('select').forEach(select => {
+                select.selectedIndex = 0;
+            });
+            newRow.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                cb.checked = false;
+            });
+            
+            container.appendChild(newRow);
+            totalForms.value = formCount + 1;
+        }
+    });
+});
+</script>
+{% endblock %}

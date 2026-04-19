@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Velg salgspunkt-område | Betala Inventory</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+        .area-card {
+            max-width: 700px;
+            width: 100%;
+        }
+        .area-item {
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .area-item:hover {
+            background-color: #e3f2fd;
+            transform: translateX(5px);
+        }
+        .area-badge {
+            font-size: 0.7rem;
+        }
+        .archived-section {
+            display: none;
+        }
+        .archived-section.show {
+            display: block;
+        }
+        .toggle-archived {
+            cursor: pointer;
+            user-select: none;
+        }
+        .toggle-archived:hover {
+            color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="card area-card shadow-lg">
+        <div class="card-header bg-white py-4 text-center border-0">
+            <h4 class="mb-1"><i class="bi bi-geo-alt text-primary"></i> Velg salgspunkt-område</h4>
+            <p class="text-muted mb-0">
+                <strong>{{ org_name }}</strong><br>
+                <small>Velg hvor lageret skal føres</small>
+            </p>
+        </div>
+        
+        <div class="card-body p-0">
+            {% if messages %}
+            <div class="px-4 pt-3">
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            <!-- Aktive områder -->
+            {% if active_areas %}
+            <div class="list-group list-group-flush" id="activeAreas">
+                {% for area in active_areas %}
+                <form method="post" action="{% url 'betala_sync:sync_sales_point_area' %}" class="d-inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="sales_point_area_id" value="{{ area.sales_point_group_id }}">
+                    <input type="hidden" name="sales_point_area_name" value="{{ area.name }}">
+                    <button type="submit" class="list-group-item list-group-item-action area-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="bi bi-pin-map text-success me-2"></i>
+                            <strong>{{ area.name }}</strong>
+                            {% if area.description %}
+                            <br><small class="text-muted ms-4">{{ area.description }}</small>
+                            {% endif %}
+                        </div>
+                        <span class="badge bg-success area-badge">
+                            <i class="bi bi-check-circle"></i> Aktiv
+                        </span>
+                    </button>
+                </form>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="p-4 text-center text-muted">
+                <i class="bi bi-exclamation-circle fs-1"></i>
+                <p class="mt-2 mb-0">Ingen aktive salgspunkt-områder funnet</p>
+            </div>
+            {% endif %}
+            
+            <!-- Arkiverte områder (skjult som standard) -->
+            {% if archived_areas %}
+            <div class="border-top">
+                <div class="px-4 py-3 toggle-archived d-flex align-items-center" onclick="toggleArchived()">
+                    <i class="bi bi-archive me-2 text-muted"></i>
+                    <span class="text-muted small">
+                        Vis {{ archived_areas|length }} arkiverte områder
+                    </span>
+                    <i class="bi bi-chevron-down ms-auto text-muted" id="archivedIcon"></i>
+                </div>
+                
+                <div class="archived-section" id="archivedSection">
+                    <div class="list-group list-group-flush">
+                        {% for area in archived_areas %}
+                        <form method="post" action="{% url 'betala_sync:sync_sales_point_area' %}" class="d-inline">
+                            {% csrf_token %}
+                            <input type="hidden" name="sales_point_area_id" value="{{ area.sales_point_group_id }}">
+                            <input type="hidden" name="sales_point_area_name" value="{{ area.name }}">
+                            <button type="submit" class="list-group-item list-group-item-action area-item d-flex justify-content-between align-items-center bg-light">
+                                <div>
+                                    <i class="bi bi-archive text-secondary me-2"></i>
+                                    <span class="text-muted">{{ area.name }}</span>
+                                    {% if area.description %}
+                                    <br><small class="text-muted ms-4">{{ area.description }}</small>
+                                    {% endif %}
+                                </div>
+                                <span class="badge bg-secondary area-badge">
+                                    <i class="bi bi-archive"></i> Arkivert
+                                </span>
+                            </button>
+                        </form>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="card-footer bg-white border-0 py-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <a href="{% url 'betala_sync:select_organization' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Tilbake
+                </a>
+                <small class="text-muted">
+                    <i class="bi bi-person"></i> {{ betala_user.email }}
+                </small>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function toggleArchived() {
+            const section = document.getElementById('archivedSection');
+            const icon = document.getElementById('archivedIcon');
+            
+            section.classList.toggle('show');
+            
+            if (section.classList.contains('show')) {
+                icon.classList.remove('bi-chevron-down');
+                icon.classList.add('bi-chevron-up');
+            } else {
+                icon.classList.remove('bi-chevron-up');
+                icon.classList.add('bi-chevron-down');
+            }
+        }
+    </script>
+</body>
+</html>

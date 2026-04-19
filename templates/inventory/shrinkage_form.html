@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Registrer svinn{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">
+                    <i class="bi bi-trash text-warning"></i> Registrer svinn
+                </h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    {% crispy form %}
+                </form>
+            </div>
+        </div>
+        
+        <!-- Rask registrering med strekkode -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-upc-scan"></i> Rask registrering
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small">
+                    Skann strekkode eller skriv inn manuelt for rask svinnregistrering.
+                </p>
+                <form method="post" action="{% url 'inventory:shrinkage_create' %}" id="quick-shrinkage-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="quick_mode" value="1">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <input type="text" name="barcode" class="form-control form-control-lg" 
+                                   placeholder="Skann strekkode..." autofocus>
+                        </div>
+                        <div class="col-md-2">
+                            <input type="number" name="quantity" class="form-control form-control-lg" 
+                                   value="1" min="1">
+                        </div>
+                        <div class="col-md-3">
+                            <select name="reason" class="form-select form-select-lg">
+                                <option value="BREAKAGE">Knust</option>
+                                <option value="SPILLAGE">Sølt</option>
+                                <option value="EXPIRED">Utgått</option>
+                                <option value="STAFF">Personal</option>
+                                <option value="OTHER">Annet</option>
+                            </select>
+                        </div>
+                        <div class="col-md-1">
+                            <button type="submit" class="btn btn-warning btn-lg w-100">
+                                <i class="bi bi-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+
+{% block title %}Lav beholdning{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-exclamation-triangle text-warning"></i> Lav beholdning</h1>
+</div>
+
+{% if event %}
+<p class="text-muted mb-4">
+    <i class="bi bi-calendar-event"></i> {{ event.name }}
+</p>
+{% endif %}
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Produkter under minimumsnivå</h5>
+        <span class="badge bg-warning text-dark">{{ low_stock|length }} produkt{{ low_stock|length|pluralize:"er" }}</span>
+    </div>
+    <div class="card-body p-0">
+        {% if low_stock %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Produkt</th>
+                        <th>Kategori</th>
+                        <th>Leverandør</th>
+                        <th class="text-end">Beholdning</th>
+                        <th class="text-end">Minimum</th>
+                        <th class="text-end">Mangler</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sl in low_stock %}
+                    <tr>
+                        <td>
+                            {% if sl.product.betala_product_id %}
+                            <a href="{% url 'inventory:product_detail' sl.product.betala_product_id %}">
+                                <strong>{{ sl.product.name }}</strong>
+                            </a>
+                            {% else %}
+                            <strong>{{ sl.product.name }}</strong>
+                            {% endif %}
+                            {% if sl.product.sku %}
+                            <br><small class="text-muted">{{ sl.product.sku }}</small>
+                            {% endif %}
+                        </td>
+                        <td>{{ sl.product.category_name|default:"-" }}</td>
+                        <td>{{ sl.product.supplier.name|default:"-" }}</td>
+                        <td class="text-end">
+                            {% if sl.quantity <= 0 %}
+                            <span class="badge bg-danger">{{ sl.quantity }}</span>
+                            {% else %}
+                            <span class="badge bg-warning text-dark">{{ sl.quantity }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">{{ sl.min_level }}</td>
+                        <td class="text-end">
+                            <span class="text-danger fw-bold">
+                                {{ sl.shortage }}
+                            </span>
+                        </td>
+                        <td class="text-end">
+                            <a href="{% url 'inventory:receiving_create' %}?product={{ sl.product.id }}" 
+                               class="btn btn-sm btn-outline-success" title="Registrer varemottak">
+                                <i class="bi bi-box-arrow-in-down"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5 text-muted">
+            <i class="bi bi-check-circle display-4 text-success"></i>
+            <p class="mt-3">Alle produkter har tilstrekkelig beholdning!</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if low_stock %}
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-lightbulb"></i> Tips</h5>
+    </div>
+    <div class="card-body">
+        <ul class="mb-0">
+            <li>Klikk på <i class="bi bi-box-arrow-in-down"></i> for å registrere varemottak direkte</li>
+            <li>Gå til <a href="{% url 'inventory:purchase_order_create' %}">Innkjøpsordre</a> for å bestille flere varer</li>
+            <li>Du kan justere minimumsnivå under produktinnstillinger</li>
+        </ul>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+
+{% block title %}Logg inn{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header text-center">
+                <h4><i class="bi bi-box-seam"></i> Betala Inventory</h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Brukernavn</label>
+                        <input type="text" name="username" id="username" 
+                               class="form-control" required autofocus>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Passord</label>
+                        <input type="password" name="password" id="password" 
+                               class="form-control" required>
+                    </div>
+                    
+                    {% if form.errors %}
+                    <div class="alert alert-danger">
+                        Ugyldig brukernavn eller passord
+                    </div>
+                    {% endif %}
+                    
+                    <button type="submit" class="btn btn-primary w-100">
+                        Logg inn
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

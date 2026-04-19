@@ -1,0 +1,145 @@
+{% extends 'base.html' %}
+
+{% block title %}Synkronisering{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="mb-0">Betala Synkronisering</h1>
+    <a href="{% url 'betala_sync:betala_login' %}" class="btn btn-success btn-lg">
+        <i class="bi bi-box-arrow-in-right"></i> Logg inn på Betala
+    </a>
+</div>
+
+<div class="row g-4">
+    <!-- Betala Login kort -->
+    <div class="col-12">
+        <div class="card border-success">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-cloud-arrow-down"></i> Synkroniser fra Betala
+                </h5>
+            </div>
+            <div class="card-body">
+                <p>
+                    Logg inn med din Betala-konto for å velge organisasjon og synkronisere produkter og transaksjoner.
+                </p>
+                <a href="{% url 'betala_sync:betala_login' %}" class="btn btn-success">
+                    <i class="bi bi-box-arrow-in-right"></i> Start synkronisering
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Synk produkter -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-box"></i> Synkroniser produkter (standard)
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">
+                    Henter produkter og kategorier fra Betala med forhåndskonfigurert API-nøkkel.
+                </p>
+                <form method="post" action="{% url 'betala_sync:sync_products' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-cloud-arrow-down"></i> Synkroniser nå
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Synk salg -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-cart"></i> Synkroniser salg
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">
+                    Henter salgsdata fra Betala og oppdaterer lagerbeholdning.
+                </p>
+                <form method="post" action="{% url 'betala_sync:sync_sales' %}">
+                    {% csrf_token %}
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <select name="event_id" class="form-select" required>
+                                <option value="">-- Velg event --</option>
+                                {% for event in events %}
+                                <option value="{{ event.pk }}">{{ event.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <select name="date" class="form-select">
+                                <option value="today">I dag</option>
+                                <option value="yesterday">I går</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-cloud-arrow-down"></i> Synkroniser salg
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Siste synkroniseringer -->
+<div class="card mt-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Siste synkroniseringer</h5>
+        <a href="{% url 'betala_sync:log_list' %}" class="btn btn-sm btn-outline-primary">
+            Se alle
+        </a>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Tidspunkt</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Behandlet</th>
+                    <th>Opprettet</th>
+                    <th>Oppdatert</th>
+                    <th>Feilet</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in recent_logs %}
+                <tr>
+                    <td>{{ log.started_at|date:"d.m.Y H:i" }}</td>
+                    <td>{{ log.get_sync_type_display }}</td>
+                    <td>
+                        {% if log.status == 'SUCCESS' %}
+                        <span class="badge bg-success">{{ log.get_status_display }}</span>
+                        {% elif log.status == 'FAILED' %}
+                        <span class="badge bg-danger">{{ log.get_status_display }}</span>
+                        {% else %}
+                        <span class="badge bg-secondary">{{ log.get_status_display }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ log.items_processed }}</td>
+                    <td class="text-success">{{ log.items_created }}</td>
+                    <td>{{ log.items_updated }}</td>
+                    <td class="text-danger">{{ log.items_failed }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">
+                        Ingen synkroniseringer utført ennå
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

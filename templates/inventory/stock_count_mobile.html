@@ -1,0 +1,496 @@
+{% extends 'base.html' %}
+
+{% block title %}Mobiltelling: {{ count.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Mobilvennlig design */
+    .mobile-count-container {
+        max-width: 600px;
+        margin: 0 auto;
+    }
+    
+    #scanner-container {
+        position: relative;
+        width: 100%;
+        max-width: 400px;
+        margin: 0 auto;
+    }
+    
+    #scanner-video {
+        width: 100%;
+        border-radius: 8px;
+        background: #000;
+    }
+    
+    #scanner-overlay {
+        position: absolute;
+        top: 50%;
+        left: 10%;
+        right: 10%;
+        height: 2px;
+        background: #00ff00;
+        box-shadow: 0 0 10px #00ff00;
+        animation: scan 2s infinite;
+    }
+    
+    @keyframes scan {
+        0%, 100% { opacity: 0.3; }
+        50% { opacity: 1; }
+    }
+    
+    .product-card {
+        border: 3px solid #0d6efd;
+        border-radius: 12px;
+    }
+    
+    .product-card.success {
+        border-color: #198754;
+        background: #d1e7dd;
+    }
+    
+    .count-input {
+        font-size: 2.5rem !important;
+        text-align: center;
+        font-weight: bold;
+        height: 80px;
+    }
+    
+    .count-btn {
+        width: 60px;
+        height: 60px;
+        font-size: 1.5rem;
+        font-weight: bold;
+    }
+    
+    .recent-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .barcode-input {
+        font-size: 1.2rem;
+        font-family: monospace;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mobile-count-container">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h5 class="mb-0">{{ count.name }}</h5>
+            <small class="text-muted">{{ count.event.name }}</small>
+        </div>
+        <a href="{% url 'inventory:stock_count_detail' count.pk %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-list"></i> Liste
+        </a>
+    </div>
+    
+    <!-- Fremdrift -->
+    <div class="progress mb-4" style="height: 25px;">
+        <div class="progress-bar bg-success" style="width: {{ progress }}%;">
+            {{ counted }}/{{ total }} talt
+        </div>
+    </div>
+    
+    <!-- Strekkode-modus velger -->
+    <div class="btn-group w-100 mb-3" role="group">
+        <input type="radio" class="btn-check" name="scan-mode" id="mode-manual" checked>
+        <label class="btn btn-outline-primary" for="mode-manual">
+            <i class="bi bi-keyboard"></i> Manuell
+        </label>
+        
+        <input type="radio" class="btn-check" name="scan-mode" id="mode-camera">
+        <label class="btn btn-outline-primary" for="mode-camera">
+            <i class="bi bi-camera"></i> Kamera
+        </label>
+    </div>
+    
+    <!-- Manuell strekkode-input -->
+    <div id="manual-input" class="mb-4">
+        <div class="input-group input-group-lg">
+            <span class="input-group-text"><i class="bi bi-upc-scan"></i></span>
+            <input type="text" id="barcode-input" class="form-control barcode-input" 
+                   placeholder="Skann eller skriv strekkode..." autofocus>
+            <button type="button" class="btn btn-primary" onclick="lookupBarcode()">
+                <i class="bi bi-search"></i>
+            </button>
+        </div>
+        <small class="text-muted">Tips: Bruk en håndskanner eller skriv strekkoden manuelt</small>
+    </div>
+    
+    <!-- Kamera-skanner -->
+    <div id="camera-scanner" class="mb-4" style="display: none;">
+        <div id="scanner-container">
+            <video id="scanner-video" playsinline></video>
+            <div id="scanner-overlay"></div>
+        </div>
+        <div class="text-center mt-2">
+            <button type="button" class="btn btn-outline-danger btn-sm" onclick="stopCamera()">
+                <i class="bi bi-stop-circle"></i> Stopp kamera
+            </button>
+        </div>
+    </div>
+    
+    <!-- Produkt funnet - tell -->
+    <div id="product-found" class="card product-card mb-4" style="display: none;">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h5 class="card-title mb-1" id="product-name">-</h5>
+                    <p class="text-muted mb-1">
+                        <small id="product-sku">-</small>
+                        <span class="badge bg-secondary ms-1" id="product-category">-</span>
+                    </p>
+                    <p class="mb-0">
+                        <small class="text-muted">Strekkode:</small> 
+                        <code id="product-barcode">-</code>
+                    </p>
+                </div>
+                <button type="button" class="btn-close" onclick="clearProduct()"></button>
+            </div>
+            
+            <hr>
+            
+            <div id="existing-count-alert" class="alert alert-info py-2 mb-3" style="display: none;">
+                <small><i class="bi bi-info-circle"></i> Allerede talt: <strong id="existing-count-value">0</strong></small>
+            </div>
+            
+            <input type="hidden" id="selected-product-id" value="">
+            
+            <div class="d-flex align-items-center justify-content-center gap-3">
+                <button type="button" class="btn btn-outline-secondary count-btn rounded-circle" 
+                        onclick="adjustCount(-1)">-</button>
+                <input type="number" id="count-value" class="form-control count-input" 
+                       value="1" min="0" style="width: 120px;">
+                <button type="button" class="btn btn-outline-secondary count-btn rounded-circle" 
+                        onclick="adjustCount(1)">+</button>
+            </div>
+            
+            <div class="d-grid gap-2 mt-3">
+                <button type="button" class="btn btn-success btn-lg" onclick="submitCount()">
+                    <i class="bi bi-check-lg"></i> Registrer telling
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Suksessmelding -->
+    <div id="success-message" class="alert alert-success" style="display: none;">
+        <i class="bi bi-check-circle-fill"></i> <span id="success-text">Registrert!</span>
+    </div>
+    
+    <!-- Feilmelding -->
+    <div id="error-message" class="alert alert-danger" style="display: none;">
+        <i class="bi bi-exclamation-circle-fill"></i> <span id="error-text">Feil!</span>
+    </div>
+    
+    <!-- Siste registreringer -->
+    <div class="card">
+        <div class="card-header">
+            <h6 class="mb-0"><i class="bi bi-clock-history"></i> Siste registreringer</h6>
+        </div>
+        <div class="card-body p-0" id="recent-list">
+            {% for line in recent_counts %}
+            <div class="recent-item">
+                <span>{{ line.product.name }}</span>
+                <span class="badge bg-primary">{{ line.counted_quantity }}</span>
+            </div>
+            {% empty %}
+            <div class="text-center text-muted py-3">
+                Ingen registreringer ennå
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
+<script>
+const countId = {{ count.pk }};
+let cameraStream = null;
+
+// Modus-bytte
+document.getElementById('mode-manual').addEventListener('change', function() {
+    document.getElementById('manual-input').style.display = 'block';
+    document.getElementById('camera-scanner').style.display = 'none';
+    stopCamera();
+    document.getElementById('barcode-input').focus();
+});
+
+document.getElementById('mode-camera').addEventListener('change', function() {
+    document.getElementById('manual-input').style.display = 'none';
+    document.getElementById('camera-scanner').style.display = 'block';
+    startCamera();
+});
+
+// Manuell input - enter for søk
+document.getElementById('barcode-input').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        lookupBarcode();
+    }
+});
+
+// Strekkode-oppslag
+function lookupBarcode() {
+    const barcode = document.getElementById('barcode-input').value.trim();
+    if (!barcode) return;
+    
+    hideMessages();
+    
+    fetch('{% url "inventory:stock_count_mobile" count.pk %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: `action=lookup_barcode&barcode=${encodeURIComponent(barcode)}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showProduct(data.product);
+        } else {
+            showError(data.error);
+            document.getElementById('barcode-input').select();
+        }
+    })
+    .catch(err => {
+        showError('Nettverksfeil: ' + err.message);
+    });
+}
+
+// Vis produkt
+function showProduct(product) {
+    document.getElementById('selected-product-id').value = product.id;
+    document.getElementById('product-name').textContent = product.name;
+    document.getElementById('product-sku').textContent = product.sku || '-';
+    document.getElementById('product-category').textContent = product.category || '-';
+    document.getElementById('product-barcode').textContent = product.barcode;
+    
+    // Vis eksisterende telling hvis finnes
+    if (product.existing_count !== null) {
+        document.getElementById('existing-count-value').textContent = product.existing_count;
+        document.getElementById('existing-count-alert').style.display = 'block';
+        document.getElementById('count-value').value = product.existing_count;
+    } else {
+        document.getElementById('existing-count-alert').style.display = 'none';
+        document.getElementById('count-value').value = 1;
+    }
+    
+    document.getElementById('product-found').style.display = 'block';
+    document.getElementById('product-found').classList.remove('success');
+    document.getElementById('count-value').focus();
+    document.getElementById('count-value').select();
+}
+
+// Tøm produkt
+function clearProduct() {
+    document.getElementById('product-found').style.display = 'none';
+    document.getElementById('barcode-input').value = '';
+    document.getElementById('barcode-input').focus();
+}
+
+// Juster telling
+function adjustCount(delta) {
+    const input = document.getElementById('count-value');
+    let val = parseInt(input.value) || 0;
+    val = Math.max(0, val + delta);
+    input.value = val;
+}
+
+// Send telling
+function submitCount() {
+    const productId = document.getElementById('selected-product-id').value;
+    const countedQuantity = document.getElementById('count-value').value;
+    
+    if (!productId || !countedQuantity) {
+        showError('Velg et produkt og angi antall');
+        return;
+    }
+    
+    hideMessages();
+    
+    fetch('{% url "inventory:stock_count_mobile" count.pk %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: `action=count_product&product_id=${productId}&counted_quantity=${countedQuantity}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showSuccess(data.message);
+            document.getElementById('product-found').classList.add('success');
+            
+            // Oppdater siste registreringer
+            addToRecentList(data.product_name, data.counted);
+            
+            // Tøm etter 1.5 sekund
+            setTimeout(() => {
+                clearProduct();
+            }, 1500);
+        } else {
+            showError(data.error);
+        }
+    })
+    .catch(err => {
+        showError('Nettverksfeil: ' + err.message);
+    });
+}
+
+// Legg til i siste liste
+function addToRecentList(name, count) {
+    const list = document.getElementById('recent-list');
+    const emptyMsg = list.querySelector('.text-center');
+    if (emptyMsg) emptyMsg.remove();
+    
+    const item = document.createElement('div');
+    item.className = 'recent-item';
+    item.innerHTML = `<span>${name}</span><span class="badge bg-success">${count}</span>`;
+    list.insertBefore(item, list.firstChild);
+    
+    // Behold maks 5
+    while (list.children.length > 5) {
+        list.removeChild(list.lastChild);
+    }
+    
+    // Oppdater fremdrift
+    updateProgress();
+}
+
+// Oppdater fremdrift
+function updateProgress() {
+    // Enkel oppdatering - øk teller
+    const progressBar = document.querySelector('.progress-bar');
+    const text = progressBar.textContent;
+    const match = text.match(/(\d+)\/(\d+)/);
+    if (match) {
+        const counted = parseInt(match[1]) + 1;
+        const total = parseInt(match[2]);
+        const pct = (counted / total * 100).toFixed(0);
+        progressBar.style.width = pct + '%';
+        progressBar.textContent = `${counted}/${total} talt`;
+    }
+}
+
+// Meldinger
+function showSuccess(msg) {
+    document.getElementById('success-text').textContent = msg;
+    document.getElementById('success-message').style.display = 'block';
+    setTimeout(() => {
+        document.getElementById('success-message').style.display = 'none';
+    }, 3000);
+}
+
+function showError(msg) {
+    document.getElementById('error-text').textContent = msg;
+    document.getElementById('error-message').style.display = 'block';
+    setTimeout(() => {
+        document.getElementById('error-message').style.display = 'none';
+    }, 5000);
+}
+
+function hideMessages() {
+    document.getElementById('success-message').style.display = 'none';
+    document.getElementById('error-message').style.display = 'none';
+}
+
+// Kamera-skanning med QuaggaJS
+function startCamera() {
+    if (typeof Quagga === 'undefined') {
+        showError('Kameraskanning er ikke tilgjengelig i denne nettleseren');
+        document.getElementById('mode-manual').checked = true;
+        document.getElementById('mode-manual').dispatchEvent(new Event('change'));
+        return;
+    }
+    
+    Quagga.init({
+        inputStream: {
+            name: "Live",
+            type: "LiveStream",
+            target: document.querySelector('#scanner-video'),
+            constraints: {
+                facingMode: "environment",
+                width: { ideal: 640 },
+                height: { ideal: 480 }
+            }
+        },
+        decoder: {
+            readers: [
+                "ean_reader",
+                "ean_8_reader",
+                "code_128_reader",
+                "code_39_reader"
+            ]
+        },
+        locate: true
+    }, function(err) {
+        if (err) {
+            console.error('Quagga init error:', err);
+            showError('Kunne ikke starte kamera: ' + err.message);
+            document.getElementById('mode-manual').checked = true;
+            document.getElementById('mode-manual').dispatchEvent(new Event('change'));
+            return;
+        }
+        Quagga.start();
+    });
+    
+    Quagga.onDetected(function(result) {
+        if (result && result.codeResult && result.codeResult.code) {
+            const barcode = result.codeResult.code;
+            
+            // Stopp skanning midlertidig
+            Quagga.pause();
+            
+            // Slå opp strekkode
+            fetch('{% url "inventory:stock_count_mobile" count.pk %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: `action=lookup_barcode&barcode=${encodeURIComponent(barcode)}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showProduct(data.product);
+                    // Behold kamera pauset mens bruker teller
+                } else {
+                    showError(data.error + ' (' + barcode + ')');
+                    // Fortsett skanning
+                    setTimeout(() => Quagga.start(), 2000);
+                }
+            })
+            .catch(err => {
+                showError('Nettverksfeil');
+                setTimeout(() => Quagga.start(), 2000);
+            });
+        }
+    });
+}
+
+function stopCamera() {
+    if (typeof Quagga !== 'undefined') {
+        Quagga.stop();
+    }
+}
+
+// Stopp kamera når siden lukkes
+window.addEventListener('beforeunload', stopCamera);
+
+// Auto-fokus på input
+document.getElementById('barcode-input').focus();
+</script>
+{% endblock %}

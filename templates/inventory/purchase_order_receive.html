@@ -1,0 +1,193 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Motta varer - {{ order.order_number }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>
+        <i class="bi bi-box-arrow-in-down text-success"></i> 
+        Motta varer fra {{ order.order_number }}
+    </h1>
+    <a href="{% url 'inventory:purchase_order_detail' order.pk %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Tilbake
+    </a>
+</div>
+
+<!-- Leverandørinfo -->
+<div class="alert alert-info d-flex justify-content-between align-items-center">
+    <div>
+        <strong>Leverandør:</strong> {{ order.supplier.name }} |
+        <strong>Event:</strong> {{ order.event.name }}
+    </div>
+    <div>
+        <span class="badge bg-primary fs-6">
+            {{ order.receive_progress_percent }}% mottatt
+        </span>
+    </div>
+</div>
+
+<form method="post">
+    {% csrf_token %}
+    
+    <!-- Mottaksinformasjon -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-info-circle"></i> Mottaksinformasjon</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label for="{{ form.delivery_note.id_for_label }}" class="form-label">Følgeseddel</label>
+                    {{ form.delivery_note }}
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="{{ form.received_date.id_for_label }}" class="form-label">Mottaksdato *</label>
+                    {{ form.received_date }}
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="{{ form.notes.id_for_label }}" class="form-label">Notater</label>
+                    {{ form.notes }}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Varelinjer -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-list-ul"></i> Varelinjer - angi mottatt antall</h5>
+            <div>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="fill-remaining">
+                    <i class="bi bi-check-all"></i> Fyll inn gjenstående
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="clear-all">
+                    <i class="bi bi-x-circle"></i> Nullstill
+                </button>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="receive-table">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 30%">Produkt</th>
+                        <th class="text-center" style="width: 10%">Bestilt</th>
+                        <th class="text-center" style="width: 10%">Mottatt før</th>
+                        <th class="text-center" style="width: 10%">Gjenstår</th>
+                        <th class="text-center" style="width: 12%">Motta nå</th>
+                        <th style="width: 14%">Batchnummer</th>
+                        <th style="width: 14%">Utløpsdato</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for line in lines %}
+                    <tr {% if line.is_fully_received %}class="table-success"{% endif %} data-remaining="{{ line.remaining_quantity }}">
+                        <td>
+                            <strong>{{ line.product.name }}</strong>
+                            {% if line.product.sku %}<br><small class="text-muted">{{ line.product.sku }}</small>{% endif %}
+                            <br><small class="text-muted">{{ line.unit_cost_kr|floatformat:2 }} kr/stk</small>
+                        </td>
+                        <td class="text-center">{{ line.quantity_ordered }}</td>
+                        <td class="text-center">{{ line.quantity_received }}</td>
+                        <td class="text-center">
+                            {% if line.is_fully_received %}
+                            <span class="badge bg-success">0</span>
+                            {% else %}
+                            <span class="badge bg-warning text-dark remaining-badge">{{ line.remaining_quantity }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if line.is_fully_received %}
+                            <input type="number" class="form-control form-control-sm text-center" 
+                                   value="0" disabled>
+                            {% else %}
+                            <input type="number" name="qty_{{ line.pk }}" 
+                                   class="form-control form-control-sm text-center qty-input" 
+                                   value="0" min="0" max="{{ line.remaining_quantity }}"
+                                   data-remaining="{{ line.remaining_quantity }}">
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if not line.is_fully_received %}
+                            <input type="text" name="batch_{{ line.pk }}" 
+                                   class="form-control form-control-sm" 
+                                   placeholder="Batch/Lot">
+                            {% else %}
+                            <input type="text" class="form-control form-control-sm" disabled>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if not line.is_fully_received %}
+                            <input type="date" name="expiry_{{ line.pk }}" 
+                                   class="form-control form-control-sm">
+                            {% else %}
+                            <input type="date" class="form-control form-control-sm" disabled>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Oppsummering og submit -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <h5 class="mb-0">
+                        Total å motta: <span id="total-receiving" class="text-success">0</span> enheter
+                    </h5>
+                </div>
+                <div class="col-md-6 text-end">
+                    <button type="submit" class="btn btn-success btn-lg">
+                        <i class="bi bi-check-circle"></i> Bekreft mottak
+                    </button>
+                    <a href="{% url 'inventory:purchase_order_detail' order.pk %}" class="btn btn-outline-secondary btn-lg">
+                        Avbryt
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const qtyInputs = document.querySelectorAll('.qty-input');
+    const totalDisplay = document.getElementById('total-receiving');
+    
+    function updateTotal() {
+        let total = 0;
+        qtyInputs.forEach(input => {
+            total += parseInt(input.value) || 0;
+        });
+        totalDisplay.textContent = total;
+    }
+    
+    qtyInputs.forEach(input => {
+        input.addEventListener('change', updateTotal);
+        input.addEventListener('input', updateTotal);
+    });
+    
+    // Fyll inn gjenstående
+    document.getElementById('fill-remaining').addEventListener('click', function() {
+        qtyInputs.forEach(input => {
+            input.value = input.dataset.remaining;
+        });
+        updateTotal();
+    });
+    
+    // Nullstill alle
+    document.getElementById('clear-all').addEventListener('click', function() {
+        qtyInputs.forEach(input => {
+            input.value = 0;
+        });
+        updateTotal();
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+
+{% block title %}Innkjøpsordrer{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-cart-plus text-primary"></i> Innkjøpsordrer</h1>
+    <a href="{% url 'inventory:purchase_order_create' %}" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Ny innkjøpsordre
+    </a>
+</div>
+
+<!-- Status filter -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3 align-items-center">
+            <div class="col-auto">
+                <label class="form-label mb-0">Status:</label>
+            </div>
+            <div class="col-auto">
+                <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">Alle statuser</option>
+                    {% for value, label in status_choices %}
+                    <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% if event %}
+            <div class="col-auto ms-auto">
+                <span class="badge bg-info">
+                    <i class="bi bi-calendar-event"></i> {{ event.name }}
+                </span>
+            </div>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+{% if orders %}
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Ordrenummer</th>
+                    <th>Leverandør</th>
+                    <th>Event</th>
+                    <th>Status</th>
+                    <th>Bestilt</th>
+                    <th>Forv. levering</th>
+                    <th class="text-end">Totalt</th>
+                    <th class="text-center">Mottatt</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in orders %}
+                <tr>
+                    <td>
+                        <a href="{% url 'inventory:purchase_order_detail' order.pk %}" class="fw-bold text-decoration-none">
+                            {{ order.order_number }}
+                        </a>
+                    </td>
+                    <td>{{ order.supplier.name }}</td>
+                    <td>{{ order.event.name }}</td>
+                    <td>
+                        {% if order.status == 'DRAFT' %}
+                        <span class="badge bg-secondary">Utkast</span>
+                        {% elif order.status == 'ORDERED' %}
+                        <span class="badge bg-primary">Bestilt</span>
+                        {% elif order.status == 'PARTIAL' %}
+                        <span class="badge bg-warning text-dark">Delvis mottatt</span>
+                        {% elif order.status == 'RECEIVED' %}
+                        <span class="badge bg-success">Mottatt</span>
+                        {% elif order.status == 'CANCELLED' %}
+                        <span class="badge bg-danger">Kansellert</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ order.order_date|date:"d.m.Y"|default:"-" }}</td>
+                    <td>{{ order.expected_delivery|date:"d.m.Y"|default:"-" }}</td>
+                    <td class="text-end">{{ order.total_cost_kr|floatformat:2 }} kr</td>
+                    <td class="text-center">
+                        <div class="progress" style="height: 20px; min-width: 80px;">
+                            <div class="progress-bar 
+                                {% if order.receive_progress_percent == 100 %}bg-success
+                                {% elif order.receive_progress_percent > 0 %}bg-warning
+                                {% else %}bg-secondary{% endif %}" 
+                                role="progressbar" 
+                                style="width: {{ order.receive_progress_percent }}%">
+                                {{ order.receive_progress_percent }}%
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <a href="{% url 'inventory:purchase_order_detail' order.pk %}" 
+                               class="btn btn-outline-primary" title="Detaljer">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            {% if order.status not in 'RECEIVED,CANCELLED' %}
+                            <a href="{% url 'inventory:purchase_order_receive' order.pk %}" 
+                               class="btn btn-outline-success" title="Motta varer">
+                                <i class="bi bi-box-arrow-in-down"></i>
+                            </a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Paginering -->
+{% if orders.has_other_pages %}
+<nav class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if orders.has_previous %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ orders.previous_page_number }}{% if selected_status %}&status={{ selected_status }}{% endif %}">Forrige</a>
+        </li>
+        {% endif %}
+        
+        <li class="page-item disabled">
+            <span class="page-link">Side {{ orders.number }} av {{ orders.paginator.num_pages }}</span>
+        </li>
+        
+        {% if orders.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ orders.next_page_number }}{% if selected_status %}&status={{ selected_status }}{% endif %}">Neste</a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+{% else %}
+<div class="alert alert-info">
+    <i class="bi bi-info-circle"></i> Ingen innkjøpsordrer funnet.
+    <a href="{% url 'inventory:purchase_order_create' %}">Opprett den første innkjøpsordren</a>
+</div>
+{% endif %}
+{% endblock %}

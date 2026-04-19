@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+
+{% block title %}Rapporter{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Rapporter</h1>
+
+{% if event %}
+<p class="text-muted mb-4">
+    <i class="bi bi-calendar-event"></i> {{ event.name }}
+</p>
+{% endif %}
+
+<div class="row g-4">
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-calendar-day text-primary"></i> Dagsrapport
+                </h5>
+                <p class="card-text text-muted">
+                    Oversikt over dagens aktiviteter, salg, svinn og varemottak.
+                </p>
+                <a href="{% url 'reports:daily' %}" class="btn btn-primary">
+                    Vis rapport
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-trash text-warning"></i> Svinnrapport
+                </h5>
+                <p class="card-text text-muted">
+                    Analyse av svinn per årsak og produkt.
+                </p>
+                <a href="{% url 'reports:shrinkage' %}" class="btn btn-warning">
+                    Vis rapport
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-box-seam text-success"></i> Lagerrapport
+                </h5>
+                <p class="card-text text-muted">
+                    Komplett lageroversikt med verdiberegning.
+                </p>
+                <a href="{% url 'reports:inventory' %}" class="btn btn-success">
+                    Vis rapport
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-graph-up text-info"></i> Salgsrapport
+                </h5>
+                <p class="card-text text-muted">
+                    Salgsstatistikk fra Betala-synkronisering.
+                </p>
+                <a href="{% url 'reports:sales' %}" class="btn btn-info">
+                    Vis rapport
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-clipboard-check text-secondary"></i> Tellerapporter
+                </h5>
+                <p class="card-text text-muted">
+                    PDF-rapporter for fullførte varetellinger sortert per deltelling.
+                </p>
+                <a href="{% url 'reports:stock_counts' %}" class="btn btn-secondary">
+                    Vis tellinger
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<hr class="my-5">
+
+<h4>Eksporter til Excel</h4>
+<div class="row g-3 mt-2">
+    <div class="col-auto">
+        <a href="{% url 'reports:export_inventory' %}" class="btn btn-outline-success">
+            <i class="bi bi-file-excel"></i> Lagerbeholdning
+        </a>
+    </div>
+    <div class="col-auto">
+        <a href="{% url 'reports:export_transactions' %}?days=7" class="btn btn-outline-success">
+            <i class="bi bi-file-excel"></i> Transaksjoner (siste 7 dager)
+        </a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+
+{% block title %}Svinn{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="bi bi-trash text-warning"></i> Svinn
+        {% if event %}<small class="text-muted">- {{ event.name }}</small>{% endif %}
+    </h2>
+    <a href="{% url 'inventory:shrinkage_create' %}" class="btn btn-warning">
+        <i class="bi bi-plus-lg"></i> Registrer svinn
+    </a>
+</div>
+
+<!-- Statistikk -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card bg-warning bg-opacity-10 border-warning">
+            <div class="card-body text-center">
+                <h3 class="mb-0">{{ stats.total_count|default:0 }}</h3>
+                <small class="text-muted">Registreringer</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-danger bg-opacity-10 border-danger">
+            <div class="card-body text-center">
+                <h3 class="mb-0">{{ stats.total_quantity|default:0 }}</h3>
+                <small class="text-muted">Totalt antall</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Svinnliste -->
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Dato</th>
+                        <th>Produkt</th>
+                        <th class="text-center">Antall</th>
+                        <th>Årsak</th>
+                        <th>Sted</th>
+                        <th>Registrert av</th>
+                        <th>Notater</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in entries %}
+                    <tr>
+                        <td>
+                            <small>{{ entry.registered_date|date:"d.m.Y H:i" }}</small>
+                        </td>
+                        <td>
+                            <strong>{{ entry.product.name }}</strong>
+                            {% if entry.product.sku %}
+                            <br><small class="text-muted">{{ entry.product.sku }}</small>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-warning text-dark fs-6">{{ entry.quantity }}</span>
+                        </td>
+                        <td>
+                            <span class="badge 
+                                {% if entry.reason == 'BREAKAGE' %}bg-danger
+                                {% elif entry.reason == 'EXPIRED' %}bg-secondary
+                                {% elif entry.reason == 'THEFT' %}bg-dark
+                                {% elif entry.reason == 'SPILLAGE' %}bg-info
+                                {% elif entry.reason == 'STAFF' %}bg-primary
+                                {% else %}bg-warning text-dark{% endif %}">
+                                {{ entry.get_reason_display }}
+                            </span>
+                        </td>
+                        <td>{{ entry.location|default:"-" }}</td>
+                        <td>{{ entry.registered_by.username|default:"-" }}</td>
+                        <td>
+                            {% if entry.notes %}
+                            <small class="text-muted" title="{{ entry.notes }}">
+                                {{ entry.notes|truncatewords:5 }}
+                            </small>
+                            {% else %}-{% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-5">
+                            <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                            Ingen svinn registrert
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Pagination -->
+{% if entries.has_other_pages %}
+<nav class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if entries.has_previous %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ entries.previous_page_number }}">
+                <i class="bi bi-chevron-left"></i>
+            </a>
+        </li>
+        {% endif %}
+        
+        {% for num in entries.paginator.page_range %}
+            {% if entries.number == num %}
+            <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+            {% elif num > entries.number|add:'-3' and num < entries.number|add:'3' %}
+            <li class="page-item"><a class="page-link" href="?page={{ num }}">{{ num }}</a></li>
+            {% endif %}
+        {% endfor %}
+        
+        {% if entries.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ entries.next_page_number }}">
+                <i class="bi bi-chevron-right"></i>
+            </a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}

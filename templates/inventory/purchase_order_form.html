@@ -1,0 +1,236 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}{% if order %}Rediger{% else %}Ny{% endif %} innkjøpsordre{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>
+        <i class="bi bi-cart-plus text-primary"></i> 
+        {% if order %}Rediger innkjøpsordre {{ order.order_number }}{% else %}Ny innkjøpsordre{% endif %}
+    </h1>
+    <a href="{% url 'inventory:purchase_order_list' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Tilbake
+    </a>
+</div>
+
+<form method="post" class="needs-validation" novalidate>
+    {% csrf_token %}
+    
+    {% if form.errors or formset.errors %}
+    <div class="alert alert-danger">
+        <h5><i class="bi bi-exclamation-triangle"></i> Feil i skjemaet</h5>
+        {% if form.non_field_errors %}
+        <ul class="mb-0">
+            {% for error in form.non_field_errors %}
+            <li>{{ error }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        {% for field in form %}
+            {% if field.errors %}
+            <ul class="mb-0">
+                {% for error in field.errors %}
+                <li><strong>{{ field.label }}:</strong> {{ error }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        {% endfor %}
+        {% if formset.non_form_errors %}
+        <ul class="mb-0">
+            {% for error in formset.non_form_errors %}
+            <li>{{ error }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        {% for line_form in formset %}
+            {% if line_form.errors %}
+            <ul class="mb-0">
+                {% for field, errors in line_form.errors.items %}
+                <li><strong>Linje {{ forloop.parentloop.counter }} - {{ field }}:</strong> {{ errors|join:", " }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    <!-- Hovedinformasjon -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-info-circle"></i> Ordreinformasjon</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.event.id_for_label }}" class="form-label">Event *</label>
+                    {{ form.event }}
+                    {% if form.event.errors %}
+                    <div class="invalid-feedback d-block">{{ form.event.errors.0 }}</div>
+                    {% endif %}
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.supplier.id_for_label }}" class="form-label">Leverandør *</label>
+                    {{ form.supplier }}
+                    {% if form.supplier.errors %}
+                    <div class="invalid-feedback d-block">{{ form.supplier.errors.0 }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label for="{{ form.order_number.id_for_label }}" class="form-label">Ordrenummer</label>
+                    {{ form.order_number }}
+                    <small class="text-muted">Genereres automatisk hvis tomt</small>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="{{ form.supplier_reference.id_for_label }}" class="form-label">Leverandørreferanse</label>
+                    {{ form.supplier_reference }}
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="{{ form.expected_delivery.id_for_label }}" class="form-label">Forventet levering</label>
+                    {{ form.expected_delivery }}
+                </div>
+            </div>
+            <div class="mb-3">
+                <label for="{{ form.notes.id_for_label }}" class="form-label">Notater</label>
+                {{ form.notes }}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Varelinjer -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-list-ul"></i> Ordrelinjer</h5>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="add-line">
+                <i class="bi bi-plus-circle"></i> Legg til linje
+            </button>
+        </div>
+        <div class="card-body">
+            {{ formset.management_form }}
+            
+            <div class="table-responsive">
+                <table class="table table-borderless" id="lines-table">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 40%">Produkt</th>
+                            <th style="width: 15%">Antall</th>
+                            <th style="width: 20%">Enhetskost (kr eks. mva)</th>
+                            <th style="width: 20%">Notater</th>
+                            <th style="width: 5%"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="formset-container">
+                        {% for line_form in formset %}
+                        <tr class="line-row">
+                            <td>
+                                {{ line_form.id }}
+                                {{ line_form.product }}
+                            </td>
+                            <td>{{ line_form.quantity_ordered }}</td>
+                            <td>{{ line_form.unit_cost_kr }}</td>
+                            <td>{{ line_form.notes }}</td>
+                            <td>
+                                <div class="form-check">
+                                    {{ line_form.DELETE }}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="text-muted small">
+                <i class="bi bi-info-circle"></i> 
+                Merk "Slett" for å fjerne en linje. Tomme linjer blir ignorert.
+            </div>
+        </div>
+    </div>
+    
+    <!-- Submit -->
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary btn-lg">
+            <i class="bi bi-check-circle"></i> {% if order %}Lagre endringer{% else %}Opprett innkjøpsordre{% endif %}
+        </button>
+        <a href="{% url 'inventory:purchase_order_list' %}" class="btn btn-outline-secondary btn-lg">
+            Avbryt
+        </a>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .line-row select, .line-row input {
+        width: 100%;
+    }
+    #lines-table td {
+        vertical-align: middle;
+    }
+    .form-check-input[type="checkbox"] {
+        width: 1.2em;
+        height: 1.2em;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const container = document.getElementById('formset-container');
+    const addBtn = document.getElementById('add-line');
+    const totalForms = document.getElementById('id_lines-TOTAL_FORMS');
+    
+    addBtn.addEventListener('click', function() {
+        const formCount = parseInt(totalForms.value);
+        const lastRow = container.querySelector('.line-row:last-child');
+        
+        if (lastRow) {
+            const newRow = lastRow.cloneNode(true);
+            
+            // Oppdater form-indekser
+            newRow.innerHTML = newRow.innerHTML.replace(
+                /lines-(\d+)-/g, 
+                `lines-${formCount}-`
+            );
+            
+            // Tøm verdier
+            newRow.querySelectorAll('input[type="text"], input[type="number"], select').forEach(el => {
+                if (el.type !== 'hidden') {
+                    el.value = '';
+                }
+            });
+            newRow.querySelectorAll('input[type="checkbox"]').forEach(el => {
+                el.checked = false;
+            });
+            
+            container.appendChild(newRow);
+            totalForms.value = formCount + 1;
+        }
+    });
+    
+    // Automatisk utfyll enhetskost fra produkt-innkjøpspris
+    container.addEventListener('change', function(e) {
+        if (e.target.matches('select[name$="-product"]')) {
+            const row = e.target.closest('.line-row');
+            const costInput = row.querySelector('input[name$="-unit_cost_kr"]');
+            
+            // Hent innkjøpspris fra produkt via AJAX
+            const productId = e.target.value;
+            if (productId && costInput && !costInput.value) {
+                fetch(`/api/products/${productId}/`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.purchase_price_ore) {
+                            costInput.value = (data.purchase_price_ore / 100).toFixed(2);
+                        }
+                    })
+                    .catch(err => console.log('Kunne ikke hente produktdata'));
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

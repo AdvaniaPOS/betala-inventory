@@ -1,0 +1,23 @@
+[Unit]
+Description=Betala Inventory (Gunicorn)
+After=network.target
+
+[Service]
+User=festival
+Group=festival
+WorkingDirectory=/home/festival/inventory-system
+Environment="PATH=/home/festival/inventory-system/venv/bin"
+EnvironmentFile=/home/festival/inventory-system/.env
+ExecStart=/home/festival/inventory-system/venv/bin/gunicorn \
+    --workers 3 \
+    --bind 127.0.0.1:8000 \
+    --access-logfile /home/festival/inventory-system/logs/access.log \
+    --error-logfile /home/festival/inventory-system/logs/error.log \
+    --capture-output \
+    config.wsgi:application
+
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

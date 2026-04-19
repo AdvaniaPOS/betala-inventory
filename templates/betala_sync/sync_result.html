@@ -1,0 +1,166 @@
+{% extends 'base.html' %}
+
+{% block title %}Synkroniseringsresultat{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="mb-0">Synkroniseringsresultat</h1>
+                <p class="text-muted mb-0">
+                    Organisasjon: <strong>{{ org_name }}</strong>
+                </p>
+            </div>
+            <div>
+                <a href="{% url 'betala_sync:select_organization' %}" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-repeat"></i> Velg annen organisasjon
+                </a>
+                <a href="{% url 'betala_sync:betala_logout' %}" class="btn btn-outline-danger">
+                    <i class="bi bi-box-arrow-right"></i> Logg ut
+                </a>
+            </div>
+        </div>
+        
+        <div class="row g-4">
+            <!-- Produkter -->
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">
+                            <i class="bi bi-box-seam"></i> Synkroniserte produkter ({{ products|length }})
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        {% if products %}
+                        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                            <table class="table table-hover table-sm mb-0">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th>Navn</th>
+                                        <th class="text-end">Pris</th>
+                                        <th class="text-end">MVA</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for product in products %}
+                                    <tr>
+                                        <td>
+                                            {{ product.name }}
+                                            <br>
+                                            <small class="text-muted">ID: {{ product.betala_product_id }}</small>
+                                        </td>
+                                        <td class="text-end">
+                                            {% if product.price_ore %}
+                                            {{ product.price_ore|floatformat:0 }} øre
+                                            {% else %}
+                                            -
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end">
+                                            {% if product.vat_factor %}
+                                            {{ product.vat_factor|floatformat:0 }}%
+                                            {% else %}
+                                            -
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="text-center py-4">
+                            <i class="bi bi-inbox text-muted" style="font-size: 2rem;"></i>
+                            <p class="text-muted mt-2 mb-0">Ingen produkter synkronisert</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Transaksjoner -->
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">
+                            <i class="bi bi-receipt"></i> Transaksjoner ({{ transactions_total }})
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        {% if transactions %}
+                        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                            <table class="table table-hover table-sm mb-0">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th>Dato</th>
+                                        <th>Produkter</th>
+                                        <th class="text-end">Beløp</th>
+                                        <th>Betaling</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for t in transactions %}
+                                    <tr>
+                                        <td>
+                                            <small>
+                                                {% if t.transaction.finalized %}
+                                                {{ t.transaction.finalized|slice:":10" }}
+                                                <br>
+                                                {{ t.transaction.finalized|slice:"11:16" }}
+                                                {% endif %}
+                                            </small>
+                                        </td>
+                                        <td>
+                                            {% for p in t.products %}
+                                            <small>{{ p.name }}</small>{% if not forloop.last %}, {% endif %}
+                                            {% empty %}
+                                            <small class="text-muted">-</small>
+                                            {% endfor %}
+                                        </td>
+                                        <td class="text-end">
+                                            {% for pay in t.payments %}
+                                            {{ pay.amount }} øre
+                                            {% empty %}
+                                            -
+                                            {% endfor %}
+                                        </td>
+                                        <td>
+                                            {% for pay in t.payments %}
+                                            <span class="badge bg-secondary">{{ pay.payment_type }}</span>
+                                            {% empty %}
+                                            -
+                                            {% endfor %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% if transactions_total > transactions|length %}
+                        <div class="card-footer text-muted text-center small">
+                            Viser {{ transactions|length }} av {{ transactions_total }} transaksjoner
+                        </div>
+                        {% endif %}
+                        {% else %}
+                        <div class="text-center py-4">
+                            <i class="bi bi-receipt text-muted" style="font-size: 2rem;"></i>
+                            <p class="text-muted mt-2 mb-0">Ingen transaksjoner funnet</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-4">
+            <a href="{% url 'betala_sync:dashboard' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Tilbake til oversikt
+            </a>
+            <a href="{% url 'inventory:product_list' %}" class="btn btn-primary">
+                <i class="bi bi-box-seam"></i> Se alle produkter
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

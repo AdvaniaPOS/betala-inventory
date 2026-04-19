@@ -1,0 +1,162 @@
+{% extends 'base.html' %}
+
+{% block title %}Varemottak #{{ order.pk }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-truck text-primary"></i> Varemottak #{{ order.pk }}</h1>
+    <a href="{% url 'inventory:receiving_list' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Tilbake til liste
+    </a>
+</div>
+
+<!-- Status og info -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-info-circle"></i> Mottaksinformasjon</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <dl class="row mb-0">
+                            <dt class="col-sm-4">Event:</dt>
+                            <dd class="col-sm-8">{{ order.event.name }}</dd>
+                            
+                            <dt class="col-sm-4">Leverandør:</dt>
+                            <dd class="col-sm-8">{{ order.supplier.name|default:"-" }}</dd>
+                            
+                            <dt class="col-sm-4">Status:</dt>
+                            <dd class="col-sm-8">
+                                {% if order.status == 'PENDING' %}
+                                <span class="badge bg-warning">Venter</span>
+                                {% elif order.status == 'RECEIVED' %}
+                                <span class="badge bg-success">Mottatt</span>
+                                {% elif order.status == 'PARTIAL' %}
+                                <span class="badge bg-info">Delvis mottatt</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ order.get_status_display }}</span>
+                                {% endif %}
+                            </dd>
+                        </dl>
+                    </div>
+                    <div class="col-md-6">
+                        <dl class="row mb-0">
+                            <dt class="col-sm-4">Ordrenummer:</dt>
+                            <dd class="col-sm-8">{{ order.order_number|default:"-" }}</dd>
+                            
+                            <dt class="col-sm-4">Følgeseddel:</dt>
+                            <dd class="col-sm-8">{{ order.delivery_note|default:"-" }}</dd>
+                            
+                            <dt class="col-sm-4">Mottaksdato:</dt>
+                            <dd class="col-sm-8">{{ order.received_date|date:"d.m.Y" }}</dd>
+                        </dl>
+                    </div>
+                </div>
+                {% if order.notes %}
+                <hr>
+                <p class="mb-0"><strong>Notater:</strong> {{ order.notes }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-clock-history"></i> Historikk</h5>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-1">
+                    <strong>Opprettet:</strong> {{ order.created_at|date:"d.m.Y H:i" }}
+                </p>
+                <p class="small text-muted mb-0">
+                    <strong>Sist oppdatert:</strong> {{ order.updated_at|date:"d.m.Y H:i" }}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Varelinjer -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-list-ul"></i> Varelinjer</h5>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Produkt</th>
+                    <th class="text-end">Forventet</th>
+                    <th class="text-end">Mottatt</th>
+                    <th class="text-end">Differanse</th>
+                    <th class="text-end">Enhetskost</th>
+                    <th>Batch</th>
+                    <th>Utløp</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for line in lines %}
+                <tr>
+                    <td>
+                        <strong>{{ line.product.name }}</strong>
+                        {% if line.notes %}
+                        <br><small class="text-muted">{{ line.notes }}</small>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">{{ line.quantity_expected|default:"-" }}</td>
+                    <td class="text-end">{{ line.quantity_received }}</td>
+                    <td class="text-end">
+                        {% if line.quantity_expected %}
+                            {% with diff=line.quantity_received|add:"-"|add:line.quantity_expected %}
+                            {% if diff > 0 %}
+                            <span class="text-success">+{{ diff }}</span>
+                            {% elif diff < 0 %}
+                            <span class="text-danger">{{ diff }}</span>
+                            {% else %}
+                            <span class="text-muted">0</span>
+                            {% endif %}
+                            {% endwith %}
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        {% if line.unit_cost_ore %}
+                        {{ line.unit_cost_ore|divisibleby:100 }} kr
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td>{{ line.batch_number|default:"-" }}</td>
+                    <td>{{ line.expiry_date|date:"d.m.Y"|default:"-" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">
+                        Ingen varelinjer registrert
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            {% if lines %}
+            <tfoot class="table-light">
+                <tr>
+                    <th>Totalt</th>
+                    <th class="text-end">-</th>
+                    <th class="text-end">
+                        {% with total=0 %}
+                        {% for line in lines %}
+                        {% endfor %}
+                        {% endwith %}
+                    </th>
+                    <th colspan="4"></th>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+    </div>
+</div>
+{% endblock %}

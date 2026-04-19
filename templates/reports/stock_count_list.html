@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+
+{% block title %}Tellerapporter{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="mb-0">
+        <i class="bi bi-clipboard-check text-primary"></i>
+        Tellerapporter
+    </h1>
+    <a href="{% url 'reports:index' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Tilbake til rapporter
+    </a>
+</div>
+
+{% if organization_name %}
+<div class="alert alert-info">
+    <i class="bi bi-building"></i> Organisasjon: <strong>{{ organization_name }}</strong>
+    {% if event %} &middot; Event: <strong>{{ event.name }}</strong>{% endif %}
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Fullførte varetelinger</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Navn</th>
+                        <th>Event</th>
+                        <th>Lokasjon</th>
+                        <th>Fullført</th>
+                        <th>Deltellinger</th>
+                        <th>Handlinger</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for count in counts %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'inventory:stock_count_detail' count.pk %}">
+                                <strong>{{ count.name }}</strong>
+                            </a>
+                        </td>
+                        <td>{{ count.event.name }}</td>
+                        <td>{{ count.location|default:"-" }}</td>
+                        <td>
+                            {{ count.completed_at|date:"d.m.Y H:i" }}
+                            {% if count.completed_by %}
+                            <br><small class="text-muted">{{ count.completed_by.get_full_name }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% with partial_count=count.partial_counts.count %}
+                            {% if partial_count > 0 %}
+                            <span class="badge bg-info">{{ partial_count }}</span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                            {% endwith %}
+                        </td>
+                        <td>
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                    <i class="bi bi-printer"></i> PDF
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li>
+                                        <a class="dropdown-item" href="{% url 'reports:stock_count_pdf' count.pk %}">
+                                            <i class="bi bi-file-pdf"></i> Samlet rapport
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="{% url 'reports:stock_count_pdf' count.pk %}?format=partial">
+                                            <i class="bi bi-file-pdf"></i> Sortert per deltelling
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">
+                            Ingen fullførte varetelinger ennå
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
