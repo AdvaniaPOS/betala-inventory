@@ -825,10 +825,12 @@ class StockTransaction(TimeStampedModel):
         
         if is_new:
             # Oppdater eller opprett StockLevel
+            # NB: Lokasjon brukes IKKE for å splitte lager - alt er på samme lager per event
+            # Lokasjon lagres kun på transaksjonen for sporbarhet
             stock_level, created = StockLevel.objects.get_or_create(
                 product=self.product,
                 event=self.event,
-                location=self.location or '',
+                location='',  # Alt på samme lager
                 defaults={'quantity': 0}
             )
             stock_level.quantity += self.quantity
