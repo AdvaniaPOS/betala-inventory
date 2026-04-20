@@ -176,14 +176,26 @@
             </div>
             
             <input type="hidden" id="selected-product-id" value="">
+            <input type="hidden" id="selected-unit-id" value="">
+            
+            <!-- Enhetsvelger (vises bare for produkter med enhetskonvertering) -->
+            <div id="unit-selector" class="mb-3" style="display: none;">
+                <label class="form-label small text-muted">Tell i enhet:</label>
+                <select id="count-unit" class="form-select" onchange="updateSelectedUnit()">
+                    <option value="">Base-enhet</option>
+                </select>
+            </div>
             
             <div class="d-flex align-items-center justify-content-center gap-3">
                 <button type="button" class="btn btn-outline-secondary count-btn rounded-circle" 
                         onclick="adjustCount(-1)">-</button>
                 <input type="number" id="count-value" class="form-control count-input" 
-                       value="1" min="0" style="width: 120px;">
+                       value="1" min="0" step="any" style="width: 120px;">
                 <button type="button" class="btn btn-outline-secondary count-btn rounded-circle" 
                         onclick="adjustCount(1)">+</button>
+            </div>
+            <div class="text-center mt-1">
+                <small id="unit-label" class="text-muted"></small>
             </div>
             
             <div class="d-grid gap-2 mt-3">
@@ -291,6 +303,26 @@ function showProduct(product) {
     document.getElementById('product-category').textContent = product.category || '-';
     document.getElementById('product-barcode').textContent = product.barcode;
     
+    // Håndter enheter
+    const unitSelector = document.getElementById('unit-selector');
+    const unitSelect = document.getElementById('count-unit');
+    const unitLabel = document.getElementById('unit-label');
+    
+    if (product.use_unit_conversion && product.count_units && product.count_units.length > 0) {
+        // Bygg enhetsdropdown
+        unitSelect.innerHTML = `<option value="">${product.base_unit_type || 'stk'}</option>`;
+        product.count_units.forEach(unit => {
+            unitSelect.innerHTML += `<option value="${unit.id}" data-factor="${unit.conversion_factor}">${unit.name}</option>`;
+        });
+        unitSelector.style.display = 'block';
+        unitLabel.textContent = product.base_unit_type || 'stk';
+    } else {
+        unitSelector.style.display = 'none';
+        unitLabel.textContent = '';
+    }
+    
+    document.getElementById('selected-unit-id').value = '';
+    
     // Vis eksisterende telling hvis finnes
     if (product.existing_count !== null) {
         document.getElementById('existing-count-value').textContent = product.existing_count;
@@ -307,11 +339,22 @@ function showProduct(product) {
     document.getElementById('count-value').select();
 }
 
+// Oppdater valgt enhet
+function updateSelectedUnit() {
+    const unitSelect = document.getElementById('count-unit');
+    const unitLabel = document.getElementById('unit-label');
+    const selectedOption = unitSelect.options[unitSelect.selectedIndex];
+    
+    document.getElementById('selected-unit-id').value = unitSelect.value;
+    unitLabel.textContent = selectedOption.textContent;
+}
+
 // Tøm produkt
 function clearProduct() {
     document.getElementById('product-found').style.display = 'none';
     document.getElementById('barcode-input').value = '';
     document.getElementById('barcode-input').focus();
+    document.getElementById('selected-unit-id').value = '';
 }
 
 // Juster telling
@@ -326,6 +369,7 @@ function adjustCount(delta) {
 function submitCount() {
     const productId = document.getElementById('selected-product-id').value;
     const countedQuantity = document.getElementById('count-value').value;
+    const unitId = document.getElementById('selected-unit-id').value;
     
     if (!productId || !countedQuantity) {
         showError('Velg et produkt og angi antall');
@@ -334,13 +378,18 @@ function submitCount() {
     
     hideMessages();
     
+    let body = `action=count_product&product_id=${productId}&counted_quantity=${countedQuantity}`;
+    if (unitId) {
+        body += `&unit_id=${unitId}`;
+    }
+    
     fetch('{% url "inventory:stock_count_mobile" count.pk %}', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
             'X-CSRFToken': '{{ csrf_token }}'
         },
-        body: `action=count_product&product_id=${productId}&counted_quantity=${countedQuantity}`
+        body: body
     })
     .then(response => response.json())
     .then(data => {

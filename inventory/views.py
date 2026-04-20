@@ -933,7 +933,7 @@ def stock_count_create(request):
 def stock_count_detail(request, pk):
     """Utfør varetelling."""
     count = get_object_or_404(StockCount, pk=pk)
-    lines = count.lines.select_related('product', 'product__category').order_by(
+    lines = count.lines.select_related('product', 'product__category', 'unit').order_by(
         'product__category__sort_order', 'product__name'
     )
     
@@ -944,8 +944,26 @@ def stock_count_detail(request, pk):
             # Lagre telletall
             for line in lines:
                 counted = request.POST.get(f'counted_{line.pk}')
+                unit_id = request.POST.get(f'unit_{line.pk}')
+                
                 if counted:
-                    line.counted_quantity = int(counted)
+                    counted_value = float(counted.replace(',', '.'))
+                    
+                    # Hent enhet og konverter til base-enhet
+                    unit = None
+                    if unit_id:
+                        try:
+                            from inventory.models import UnitOfMeasure
+                            unit = UnitOfMeasure.objects.get(pk=unit_id, product=line.product)
+                            # Konverter til base-enhet
+                            counted_value = int(counted_value * unit.conversion_factor)
+                        except UnitOfMeasure.DoesNotExist:
+                            counted_value = int(counted_value)
+                    else:
+                        counted_value = int(counted_value)
+                    
+                    line.counted_quantity = counted_value
+                    line.unit = unit
                     line.counted_by = request.user
                     line.counted_at = timezone.now()
                     line.save()
@@ -957,8 +975,25 @@ def stock_count_detail(request, pk):
             # Lagre telletall først
             for line in lines:
                 counted = request.POST.get(f'counted_{line.pk}')
+                unit_id = request.POST.get(f'unit_{line.pk}')
+                
                 if counted:
-                    line.counted_quantity = int(counted)
+                    counted_value = float(counted.replace(',', '.'))
+                    
+                    # Hent enhet og konverter til base-enhet
+                    unit = None
+                    if unit_id:
+                        try:
+                            from inventory.models import UnitOfMeasure
+                            unit = UnitOfMeasure.objects.get(pk=unit_id, product=line.product)
+                            counted_value = int(counted_value * unit.conversion_factor)
+                        except UnitOfMeasure.DoesNotExist:
+                            counted_value = int(counted_value)
+                    else:
+                        counted_value = int(counted_value)
+                    
+                    line.counted_quantity = counted_value
+                    line.unit = unit
                     line.counted_by = request.user
                     line.counted_at = timezone.now()
                     line.save()
@@ -1013,6 +1048,17 @@ def stock_count_detail(request, pk):
     # Statistikk
     counted = lines.filter(counted_quantity__isnull=False).count()
     total = lines.count()
+    
+    # Prefetch telleenheter for alle produkter
+    from django.db.models import Prefetch
+    from inventory.models import UnitOfMeasure
+    lines = lines.prefetch_related(
+        Prefetch(
+            'product__units',
+            queryset=UnitOfMeasure.objects.filter(is_count_unit=True).order_by('-conversion_factor'),
+            to_attr='count_units_list'
+        )
+    )
     
     # Hent importerte deltellinger for denne tellingen
     imported_partials = []
@@ -1141,10 +1187,23 @@ def stock_count_mobile(request, pk):
             # Registrer telling for et produkt (via strekkode eller manuelt valg)
             product_id = request.POST.get('product_id')
             counted_quantity = request.POST.get('counted_quantity')
+            unit_id = request.POST.get('unit_id')
             
             if product_id and counted_quantity:
                 try:
                     product = Product.objects.get(pk=product_id)
+                    
+                    # Konverter til base-enhet hvis enhet er valgt
+                    counted_value = float(counted_quantity.replace(',', '.'))
+                    unit = None
+                    if unit_id:
+                        try:
+                            unit = UnitOfMeasure.objects.get(pk=unit_id, product=product)
+                            counted_value = int(counted_value * unit.conversion_factor)
+                        except UnitOfMeasure.DoesNotExist:
+                            counted_value = int(counted_value)
+                    else:
+                        counted_value = int(counted_value)
                     
                     # Finn eller opprett linje i tellingen
                     line, created = count.lines.get_or_create(
@@ -1156,16 +1215,22 @@ def stock_count_mobile(request, pk):
                         }
                     )
                     
-                    line.counted_quantity = int(counted_quantity)
+                    line.counted_quantity = counted_value
+                    line.unit = unit
                     line.counted_by = request.user
                     line.counted_at = timezone.now()
                     line.save()
                     
+                    # Formater visning av registrert antall
+                    display_quantity = counted_quantity
+                    if unit:
+                        display_quantity = f"{counted_quantity} {unit.name}"
+                    
                     return JsonResponse({
                         'success': True,
                         'product_name': product.name,
-                        'counted': int(counted_quantity),
-                        'message': f'{product.name}: {counted_quantity} enheter registrert'
+                        'counted': display_quantity,
+                        'message': f'{product.name}: {display_quantity} registrert'
                     })
                 except Product.DoesNotExist:
                     return JsonResponse({'success': False, 'error': 'Produktet finnes ikke'})
@@ -1194,6 +1259,16 @@ def stock_count_mobile(request, pk):
                 existing_line = count.lines.filter(product=product).first()
                 existing_count = existing_line.counted_quantity if existing_line else None
                 
+                # Hent telleenheter for produktet
+                count_units = []
+                if product.use_unit_conversion:
+                    for unit in product.units.filter(is_count_unit=True).order_by('-conversion_factor'):
+                        count_units.append({
+                            'id': unit.pk,
+                            'name': unit.name,
+                            'conversion_factor': unit.conversion_factor
+                        })
+                
                 return JsonResponse({
                     'success': True,
                     'product': {
@@ -1202,7 +1277,10 @@ def stock_count_mobile(request, pk):
                         'sku': product.sku,
                         'barcode': product.barcode,
                         'category': product.category.name if product.category else None,
-                        'existing_count': existing_count
+                        'existing_count': existing_count,
+                        'use_unit_conversion': product.use_unit_conversion,
+                        'base_unit_type': product.base_unit_type,
+                        'count_units': count_units
                     }
                 })
             else:

@@ -203,7 +203,7 @@
                             <th>Produkt</th>
                             <th>Kategori</th>
                             <th class="text-center">Forventet</th>
-                            <th class="text-center">Talt</th>
+                            <th class="text-center" style="min-width: 200px;">Talt</th>
                             <th class="text-center">Avvik</th>
                             <th>Status</th>
                         </tr>
@@ -223,19 +223,48 @@
                                 {% else %}-{% endif %}
                             </td>
                             <td class="text-center">
+                                {% if line.product.use_unit_conversion and line.product.count_units_list %}
+                                <span class="badge bg-secondary fs-6" title="{{ line.expected_quantity }} {{ line.product.base_unit_type }}">
+                                    {{ line.get_expected_in_units }}
+                                </span>
+                                {% else %}
                                 <span class="badge bg-secondary fs-6">{{ line.expected_quantity }}</span>
+                                {% endif %}
                             </td>
                             <td class="text-center">
                                 {% if count.status == 'IN_PROGRESS' %}
-                                <input type="number" 
-                                       name="counted_{{ line.pk }}" 
-                                       value="{{ line.counted_quantity|default:'' }}"
-                                       class="form-control form-control-lg text-center"
-                                       style="max-width: 100px; margin: 0 auto;"
-                                       min="0"
-                                       placeholder="?">
+                                <div class="d-flex justify-content-center gap-1">
+                                    <input type="number" 
+                                           name="counted_{{ line.pk }}" 
+                                           value="{% if line.counted_quantity is not None %}{% if line.unit %}{{ line.get_counted_in_unit|floatformat:2 }}{% else %}{{ line.counted_quantity }}{% endif %}{% endif %}"
+                                           class="form-control form-control-lg text-center"
+                                           style="max-width: 80px;"
+                                           min="0"
+                                           step="any"
+                                           placeholder="?">
+                                    {% if line.product.use_unit_conversion and line.product.count_units_list %}
+                                    <select name="unit_{{ line.pk }}" class="form-select" style="max-width: 120px;">
+                                        <option value="">{{ line.product.base_unit_type }}</option>
+                                        {% for unit in line.product.count_units_list %}
+                                        <option value="{{ unit.pk }}" {% if line.unit_id == unit.pk %}selected{% endif %}>
+                                            {{ unit.name }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                    {% endif %}
+                                </div>
                                 {% else %}
-                                <span class="badge bg-primary fs-6">{{ line.counted_quantity|default:"-" }}</span>
+                                {% if line.counted_quantity is not None %}
+                                    {% if line.unit %}
+                                    <span class="badge bg-primary fs-6" title="{{ line.counted_quantity }} {{ line.product.base_unit_type }}">
+                                        {{ line.get_counted_in_unit|floatformat:2 }} {{ line.unit.name }}
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-primary fs-6">{{ line.counted_quantity }}</span>
+                                    {% endif %}
+                                {% else %}
+                                <span class="badge bg-secondary fs-6">-</span>
+                                {% endif %}
                                 {% endif %}
                             </td>
                             <td class="text-center">

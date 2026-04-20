@@ -1375,6 +1375,16 @@ class StockCountLine(TimeStampedModel):
     expected_quantity = models.IntegerField('Forventet antall')
     counted_quantity = models.IntegerField('Talt antall', null=True, blank=True)
     
+    # Enhet brukt ved telling
+    unit = models.ForeignKey(
+        'UnitOfMeasure',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name='Enhet',
+        help_text='Enheten som ble brukt ved telling'
+    )
+    
     counted_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -1412,6 +1422,40 @@ class StockCountLine(TimeStampedModel):
         if self.counted_quantity is not None:
             return self.counted_quantity - self.expected_quantity
         return None
+
+    def get_expected_in_units(self):
+        """Returner forventet antall formatert i enheter."""
+        if not self.product.use_unit_conversion:
+            return str(self.expected_quantity)
+        
+        # Hent telleenheter for produktet
+        count_units = self.product.units.filter(is_count_unit=True).order_by('-conversion_factor')
+        if not count_units.exists():
+            return str(self.expected_quantity)
+        
+        remaining = self.expected_quantity
+        parts = []
+        
+        for unit in count_units:
+            if remaining >= unit.conversion_factor:
+                count = remaining // unit.conversion_factor
+                remaining = remaining % unit.conversion_factor
+                parts.append(f"{count} {unit.name}")
+        
+        # Legg til rest i base-enhet
+        if remaining > 0:
+            base_abbrev = getattr(self.product, 'base_unit_type', 'stk')
+            parts.append(f"{remaining} {base_abbrev}")
+        
+        return ' + '.join(parts) if parts else str(self.expected_quantity)
+
+    def get_counted_in_unit(self):
+        """Returner talt antall i den valgte enheten."""
+        if self.counted_quantity is None:
+            return None
+        if self.unit and self.unit.conversion_factor > 0:
+            return self.counted_quantity / self.unit.conversion_factor
+        return self.counted_quantity
 
 
 # =============================================================================
