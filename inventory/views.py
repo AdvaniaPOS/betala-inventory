@@ -258,6 +258,15 @@ def product_edit(request, betala_id):
             
             # Lagre lokalt først (uten å oppdatere pakker ennå)
             product = form.save(commit=False)
+            
+            # Håndter enhetskonvertering-felter fra sidepanel (ikke i crispy form)
+            base_unit_type = request.POST.get('base_unit_type')
+            use_unit_conversion = request.POST.get('use_unit_conversion') == 'on'
+            
+            if base_unit_type in ['ml', 'cl', 'stk']:
+                product.base_unit_type = base_unit_type
+            product.use_unit_conversion = use_unit_conversion
+            
             product.save()
             
             # Synkroniser til Betala hvis produktet har Betala ID
@@ -499,6 +508,104 @@ def bundle_edit(request, betala_id):
         'add_form': add_form,
     }
     return render(request, 'inventory/bundle_edit.html', context)
+
+
+@login_required
+def product_units(request, betala_id):
+    """Administrer enheter for et produkt."""
+    from .models import UnitOfMeasure
+    from .forms import UnitOfMeasureForm
+    
+    product = get_object_or_404(Product, betala_product_id=betala_id)
+    
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'add_unit':
+            # Legg til ny enhet
+            name = request.POST.get('name', '').strip()
+            short_name = request.POST.get('short_name', '').strip()
+            conversion_factor = request.POST.get('conversion_factor')
+            is_purchase_unit = request.POST.get('is_purchase_unit') == 'on'
+            is_sale_unit = request.POST.get('is_sale_unit') == 'on'
+            is_count_unit = request.POST.get('is_count_unit') == 'on'
+            
+            if name and conversion_factor:
+                try:
+                    factor = int(conversion_factor)
+                    if factor >= 1:
+                        UnitOfMeasure.objects.create(
+                            product=product,
+                            name=name,
+                            short_name=short_name or name[:10],
+                            conversion_factor=factor,
+                            is_purchase_unit=is_purchase_unit,
+                            is_sale_unit=is_sale_unit,
+                            is_count_unit=is_count_unit,
+                        )
+                        messages.success(request, f'Enhet "{name}" opprettet')
+                except ValueError:
+                    messages.error(request, 'Ugyldig konverteringsfaktor')
+                except Exception as e:
+                    messages.error(request, f'Kunne ikke opprette enhet: {e}')
+            else:
+                messages.error(request, 'Navn og konverteringsfaktor er påkrevd')
+        
+        elif action == 'delete_unit':
+            unit_id = request.POST.get('unit_id')
+            try:
+                unit = UnitOfMeasure.objects.get(id=unit_id, product=product)
+                unit_name = unit.name
+                unit.delete()
+                messages.success(request, f'Enhet "{unit_name}" slettet')
+            except UnitOfMeasure.DoesNotExist:
+                messages.error(request, 'Enheten finnes ikke')
+        
+        elif action == 'update_unit':
+            unit_id = request.POST.get('unit_id')
+            try:
+                unit = UnitOfMeasure.objects.get(id=unit_id, product=product)
+                unit.name = request.POST.get(f'name_{unit_id}', unit.name)
+                unit.short_name = request.POST.get(f'short_name_{unit_id}', unit.short_name)
+                unit.conversion_factor = int(request.POST.get(f'factor_{unit_id}', unit.conversion_factor))
+                unit.is_purchase_unit = request.POST.get(f'purchase_{unit_id}') == 'on'
+                unit.is_sale_unit = request.POST.get(f'sale_{unit_id}') == 'on'
+                unit.is_count_unit = request.POST.get(f'count_{unit_id}') == 'on'
+                unit.save()
+                messages.success(request, f'Enhet "{unit.name}" oppdatert')
+            except (UnitOfMeasure.DoesNotExist, ValueError) as e:
+                messages.error(request, f'Kunne ikke oppdatere enhet: {e}')
+        
+        elif action == 'create_defaults':
+            # Opprett standardenheter basert på base_unit_type
+            from .unit_conversion import create_default_units_for_liquid, create_default_units_for_bottles
+            
+            try:
+                if product.base_unit_type in ('ml', 'cl'):
+                    # Sjekk om det er øl (artikkelgruppe 04007) eller vin (04008)
+                    if product.betala_article_group_id == '04008':  # Vin
+                        units = create_default_units_for_bottles(product)
+                    else:  # Øl eller annen væske
+                        units = create_default_units_for_liquid(product)
+                    
+                    if units:
+                        messages.success(request, f'Opprettet {len(units)} standardenheter')
+                    else:
+                        messages.info(request, 'Standardenheter finnes allerede')
+                else:
+                    messages.warning(request, 'Standardenheter kun tilgjengelig for væsker (ml/cl)')
+            except Exception as e:
+                messages.error(request, f'Kunne ikke opprette standardenheter: {e}')
+        
+        return redirect('inventory:product_units', betala_id=betala_id)
+    
+    units = product.units.all().order_by('sort_order', '-conversion_factor')
+    
+    context = {
+        'product': product,
+        'units': units,
+    }
+    return render(request, 'inventory/product_units.html', context)
 
 
 # =============================================================================

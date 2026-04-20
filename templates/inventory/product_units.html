@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Enheter - {{ product.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a href="{% url 'inventory:product_list' %}">Produkter</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'inventory:product_detail' product.betala_product_id %}">{{ product.name }}</a></li>
+                    <li class="breadcrumb-item active">Enheter</li>
+                </ol>
+            </nav>
+            <h1 class="h3 mb-0">
+                <i class="bi bi-rulers text-primary me-2"></i>
+                Enheter for {{ product.name }}
+            </h1>
+        </div>
+        <a href="{% url 'inventory:product_edit' product.betala_product_id %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Tilbake
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- Produktinfo kort -->
+        <div class="col-lg-4 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Produktinformasjon</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-borderless table-sm mb-0">
+                        <tr>
+                            <td class="text-muted">Varenummer:</td>
+                            <td class="fw-medium">{{ product.betala_product_id }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Baseenhet:</td>
+                            <td>
+                                {% if product.base_unit_type == 'ml' %}
+                                    <span class="badge bg-info">Milliliter (ml)</span>
+                                {% elif product.base_unit_type == 'cl' %}
+                                    <span class="badge bg-info">Centiliter (cl)</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Stykk (stk)</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Enhetskonvertering:</td>
+                            <td>
+                                {% if product.use_unit_conversion %}
+                                    <span class="badge bg-success">Aktivert</span>
+                                {% else %}
+                                    <span class="badge bg-warning text-dark">Deaktivert</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Lagerbeholdning:</td>
+                            <td class="fw-medium">{{ product.display_quantity }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            {% if product.base_unit_type in 'ml,cl' %}
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-magic me-2"></i>Hurtigoppsett</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        Opprett standardenheter automatisk basert på produkttype.
+                    </p>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="create_defaults">
+                        <button type="submit" class="btn btn-outline-primary w-100">
+                            <i class="bi bi-plus-circle me-1"></i>
+                            Opprett standardenheter
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Enheter liste -->
+        <div class="col-lg-8">
+            <!-- Eksisterende enheter -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-list-ul me-2"></i>
+                        Definerte enheter
+                    </h5>
+                    <span class="badge bg-primary">{{ units.count }} enheter</span>
+                </div>
+                <div class="card-body p-0">
+                    {% if units %}
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Navn</th>
+                                    <th>Kort</th>
+                                    <th class="text-end">Faktor</th>
+                                    <th class="text-center">Innkjøp</th>
+                                    <th class="text-center">Salg</th>
+                                    <th class="text-center">Telling</th>
+                                    <th class="text-end">Handlinger</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for unit in units %}
+                                <tr>
+                                    <form method="post">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="update_unit">
+                                        <input type="hidden" name="unit_id" value="{{ unit.id }}">
+                                        <td>
+                                            <input type="text" name="name_{{ unit.id }}" 
+                                                   value="{{ unit.name }}" 
+                                                   class="form-control form-control-sm">
+                                        </td>
+                                        <td>
+                                            <input type="text" name="short_name_{{ unit.id }}" 
+                                                   value="{{ unit.short_name }}" 
+                                                   class="form-control form-control-sm" style="width: 70px;">
+                                        </td>
+                                        <td class="text-end">
+                                            <input type="number" name="factor_{{ unit.id }}" 
+                                                   value="{{ unit.conversion_factor }}" 
+                                                   class="form-control form-control-sm text-end" style="width: 100px;" min="1">
+                                        </td>
+                                        <td class="text-center">
+                                            <input type="checkbox" name="purchase_{{ unit.id }}" 
+                                                   class="form-check-input" 
+                                                   {% if unit.is_purchase_unit %}checked{% endif %}>
+                                        </td>
+                                        <td class="text-center">
+                                            <input type="checkbox" name="sale_{{ unit.id }}" 
+                                                   class="form-check-input" 
+                                                   {% if unit.is_sale_unit %}checked{% endif %}>
+                                        </td>
+                                        <td class="text-center">
+                                            <input type="checkbox" name="count_{{ unit.id }}" 
+                                                   class="form-check-input" 
+                                                   {% if unit.is_count_unit %}checked{% endif %}>
+                                        </td>
+                                        <td class="text-end">
+                                            <div class="btn-group btn-group-sm">
+                                                <button type="submit" class="btn btn-outline-primary" title="Lagre">
+                                                    <i class="bi bi-check"></i>
+                                                </button>
+                                    </form>
+                                                <form method="post" class="d-inline" 
+                                                      onsubmit="return confirm('Vil du slette enheten {{ unit.name }}?');">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="action" value="delete_unit">
+                                                    <input type="hidden" name="unit_id" value="{{ unit.id }}">
+                                                    <button type="submit" class="btn btn-outline-danger" title="Slett">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5 text-muted">
+                        <i class="bi bi-rulers display-4 mb-3 d-block"></i>
+                        <p class="mb-0">Ingen enheter definert ennå.</p>
+                        <p class="small">Legg til enheter nedenfor eller bruk hurtigoppsett.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Legg til ny enhet -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-plus-circle me-2"></i>Legg til ny enhet</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="add_unit">
+                        
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Navn <span class="text-danger">*</span></label>
+                                <input type="text" name="name" class="form-control" 
+                                       placeholder="f.eks. Tank 30L" required>
+                                <div class="form-text">Visningsnavn for enheten</div>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Kortform</label>
+                                <input type="text" name="short_name" class="form-control" 
+                                       placeholder="f.eks. T30" maxlength="10">
+                                <div class="form-text">Maks 10 tegn</div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Konverteringsfaktor <span class="text-danger">*</span></label>
+                                <input type="number" name="conversion_factor" class="form-control" 
+                                       placeholder="f.eks. 30000" min="1" required>
+                                <div class="form-text">
+                                    {% if product.base_unit_type == 'ml' %}
+                                    Antall ml i enheten
+                                    {% elif product.base_unit_type == 'cl' %}
+                                    Antall cl i enheten
+                                    {% else %}
+                                    Antall stk i enheten
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Type</label>
+                                <div class="d-flex flex-column gap-2 mt-2">
+                                    <div class="form-check">
+                                        <input type="checkbox" name="is_purchase_unit" class="form-check-input" id="newPurchase">
+                                        <label class="form-check-label" for="newPurchase">Innkjøpsenhet</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input type="checkbox" name="is_sale_unit" class="form-check-input" id="newSale">
+                                        <label class="form-check-label" for="newSale">Salgsenhet</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input type="checkbox" name="is_count_unit" class="form-check-input" id="newCount">
+                                        <label class="form-check-label" for="newCount">Telleenhet</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <hr class="my-4">
+                        
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-plus-circle me-1"></i>
+                            Legg til enhet
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Hjelpetekst -->
+            <div class="card mt-4 border-info">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-lightbulb me-2"></i>Hvordan fungerer enhetskonvertering?</h5>
+                </div>
+                <div class="card-body">
+                    <p>
+                        Enhetskonvertering lar deg jobbe med ulike størrelser og pakninger av samme produkt.
+                        Alt lagres i <strong>baseenheter</strong> ({{ product.get_base_unit_type_display }}) internt.
+                    </p>
+                    
+                    <h6>Eksempel for øl:</h6>
+                    <ul>
+                        <li><strong>Tank 30L</strong> = 30 000 ml → Ved mottak legges 30 000 ml til lageret</li>
+                        <li><strong>Glass 0.4L</strong> = 400 ml → Ved salg trekkes 400 ml fra lageret</li>
+                        <li><strong>Liter</strong> = 1 000 ml → Ved telling kan du telle i hele liter</li>
+                    </ul>
+                    
+                    <h6>Enhetstyper:</h6>
+                    <ul>
+                        <li><strong>Innkjøpsenhet:</strong> Brukes ved varemottak</li>
+                        <li><strong>Salgsenhet:</strong> Brukes ved salg/uttak</li>
+                        <li><strong>Telleenhet:</strong> Brukes ved varetelling</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -17,6 +17,7 @@ urlpatterns = [
     path('produkter/<int:betala_id>/', views.product_detail, name='product_detail'),
     path('produkter/<int:betala_id>/rediger/', views.product_edit, name='product_edit'),
     path('produkter/<int:betala_id>/pakke/', views.bundle_edit, name='bundle_edit'),
+    path('produkter/<int:betala_id>/enheter/', views.product_units, name='product_units'),
     
     # Lagerbeholdning
     path('beholdning/', views.stock_level_list, name='stock_level_list'),
