@@ -547,13 +547,18 @@ function submitCount() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Vis melding med total
+            // Vis melding med hva som ble lagt til og ny total
             const modeText = mode === 'add' ? 'lagt til' : 'korrigert til';
             showSuccess(`${data.product_name}: ${displayQuantity} ${modeText} (totalt: ${data.new_total})`);
             document.getElementById('product-found').classList.add('success');
             
-            // Oppdater siste registreringer med ny total
-            addToRecentList(data.product_name, data.new_total);
+            // Oppdater siste registreringer med det som ble lagt til (ikke totalen)
+            addToRecentList(data.product_name, displayQuantity);
+            
+            // Oppdater fremdrift bare hvis dette var et nytt produkt
+            if (data.is_new_product) {
+                updateProgress();
+            }
             
             // Tøm etter 1.5 sekund
             setTimeout(() => {
@@ -576,7 +581,7 @@ function addToRecentList(name, count) {
     
     const item = document.createElement('div');
     item.className = 'recent-item';
-    item.innerHTML = `<span>${name}</span><span class="badge bg-success">${count}</span>`;
+    item.innerHTML = `<span>${name}</span><span class="badge bg-success">+${count}</span>`;
     list.insertBefore(item, list.firstChild);
     
     // Behold maks 5

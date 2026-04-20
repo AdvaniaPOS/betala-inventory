@@ -1237,6 +1237,7 @@ def stock_count_mobile(request, pk):
                         'product_name': product.name,
                         'counted': display_quantity,
                         'new_total': line.counted_quantity,
+                        'is_new_product': created,
                         'message': f'{product.name}: {display_quantity} {"lagt til" if mode == "add" else "registrert"} (totalt: {line.counted_quantity})'
                     })
                 except Product.DoesNotExist:
