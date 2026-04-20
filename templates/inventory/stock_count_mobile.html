@@ -171,12 +171,30 @@
             
             <hr>
             
+            <!-- Info om eksisterende telling med handlingsknapper -->
             <div id="existing-count-alert" class="alert alert-info py-2 mb-3" style="display: none;">
-                <small><i class="bi bi-info-circle"></i> Allerede talt: <strong id="existing-count-value">0</strong></small>
+                <div class="d-flex justify-content-between align-items-center">
+                    <small><i class="bi bi-info-circle"></i> Allerede talt: <strong id="existing-count-value">0</strong></small>
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-outline-warning btn-sm" onclick="setCorrectMode()" title="Korriger">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="deleteLine()" title="Slett">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Modus-indikator -->
+            <div id="mode-indicator" class="alert alert-warning py-2 mb-3" style="display: none;">
+                <small><i class="bi bi-pencil"></i> <strong>Korrigeringsmodus</strong> - verdien vil overskrive eksisterende</small>
+                <button type="button" class="btn btn-link btn-sm py-0" onclick="setAddMode()">Avbryt</button>
             </div>
             
             <input type="hidden" id="selected-product-id" value="">
             <input type="hidden" id="calculated-total" value="">
+            <input type="hidden" id="count-mode" value="add">
             
             <!-- Multi-unit felter (vises for produkter med enhetskonvertering) -->
             <div id="multi-unit-section" style="display: none;">
@@ -310,6 +328,10 @@ function showProduct(product) {
     document.getElementById('product-category').textContent = product.category || '-';
     document.getElementById('product-barcode').textContent = product.barcode;
     
+    // Reset modus til add
+    document.getElementById('count-mode').value = 'add';
+    document.getElementById('mode-indicator').style.display = 'none';
+    
     const multiUnitSection = document.getElementById('multi-unit-section');
     const simpleCountSection = document.getElementById('simple-count-section');
     const multiUnitInputs = document.getElementById('multi-unit-inputs');
@@ -339,20 +361,16 @@ function showProduct(product) {
     } else {
         multiUnitSection.style.display = 'none';
         simpleCountSection.style.display = 'block';
+        // Start alltid på 1 (legg til modus)
+        document.getElementById('count-value').value = 1;
     }
     
     // Vis eksisterende telling hvis finnes
     if (product.existing_count !== null) {
         document.getElementById('existing-count-value').textContent = product.existing_count;
         document.getElementById('existing-count-alert').style.display = 'block';
-        if (!product.use_unit_conversion) {
-            document.getElementById('count-value').value = product.existing_count;
-        }
     } else {
         document.getElementById('existing-count-alert').style.display = 'none';
-        if (!product.use_unit_conversion) {
-            document.getElementById('count-value').value = 1;
-        }
     }
     
     document.getElementById('product-found').style.display = 'block';
@@ -366,6 +384,67 @@ function showProduct(product) {
         document.getElementById('count-value').focus();
         document.getElementById('count-value').select();
     }
+}
+
+// Sett korrigeringsmodus - overskriver eksisterende verdi
+function setCorrectMode() {
+    document.getElementById('count-mode').value = 'replace';
+    document.getElementById('mode-indicator').style.display = 'block';
+    
+    // Sett verdien til eksisterende for korrigering
+    if (currentProduct && currentProduct.existing_count !== null) {
+        if (!currentProduct.use_unit_conversion) {
+            document.getElementById('count-value').value = currentProduct.existing_count;
+            document.getElementById('count-value').focus();
+            document.getElementById('count-value').select();
+        }
+    }
+}
+
+// Tilbake til legg-til modus
+function setAddMode() {
+    document.getElementById('count-mode').value = 'add';
+    document.getElementById('mode-indicator').style.display = 'none';
+    document.getElementById('count-value').value = 1;
+}
+
+// Slett linje
+function deleteLine() {
+    if (!currentProduct) return;
+    
+    if (!confirm(`Slette ${currentProduct.name} fra tellingen?`)) return;
+    
+    fetch('{% url "inventory:stock_count_mobile" count.pk %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: `action=delete_line&product_id=${currentProduct.id}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showSuccess(data.message);
+            clearProduct();
+            // Oppdater fremdrift (reduser teller)
+            const progressBar = document.querySelector('.progress-bar');
+            const text = progressBar.textContent;
+            const match = text.match(/(\d+)\/(\d+)/);
+            if (match) {
+                const counted = Math.max(0, parseInt(match[1]) - 1);
+                const total = parseInt(match[2]);
+                const pct = total > 0 ? (counted / total * 100).toFixed(0) : 0;
+                progressBar.style.width = pct + '%';
+                progressBar.textContent = `${counted}/${total} talt`;
+            }
+        } else {
+            showError(data.error);
+        }
+    })
+    .catch(err => {
+        showError('Nettverksfeil: ' + err.message);
+    });
 }
 
 // Oppdater total fra multi-unit inputs
@@ -403,6 +482,8 @@ function clearProduct() {
     document.getElementById('barcode-input').focus();
     document.getElementById('calculated-total').value = '';
     document.getElementById('multi-unit-inputs').innerHTML = '';
+    document.getElementById('count-mode').value = 'add';
+    document.getElementById('mode-indicator').style.display = 'none';
     currentProduct = null;
 }
 
@@ -449,8 +530,11 @@ function submitCount() {
     
     hideMessages();
     
+    // Hent modus (add eller replace)
+    const mode = document.getElementById('count-mode').value || 'add';
+    
     // For multi-unit sender vi bare total (allerede beregnet)
-    let body = `action=count_product&product_id=${productId}&counted_quantity=${countedQuantity}`;
+    let body = `action=count_product&product_id=${productId}&counted_quantity=${countedQuantity}&mode=${mode}`;
     
     fetch('{% url "inventory:stock_count_mobile" count.pk %}', {
         method: 'POST',
@@ -463,12 +547,13 @@ function submitCount() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Bruk vår displayQuantity for bedre lesbarhet
-            showSuccess(`${data.product_name}: ${displayQuantity} registrert`);
+            // Vis melding med total
+            const modeText = mode === 'add' ? 'lagt til' : 'korrigert til';
+            showSuccess(`${data.product_name}: ${displayQuantity} ${modeText} (totalt: ${data.new_total})`);
             document.getElementById('product-found').classList.add('success');
             
-            // Oppdater siste registreringer
-            addToRecentList(data.product_name, displayQuantity);
+            // Oppdater siste registreringer med ny total
+            addToRecentList(data.product_name, data.new_total);
             
             // Tøm etter 1.5 sekund
             setTimeout(() => {

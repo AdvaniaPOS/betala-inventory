@@ -1188,6 +1188,7 @@ def stock_count_mobile(request, pk):
             product_id = request.POST.get('product_id')
             counted_quantity = request.POST.get('counted_quantity')
             unit_id = request.POST.get('unit_id')
+            mode = request.POST.get('mode', 'add')  # 'add' eller 'replace'
             
             if product_id and counted_quantity:
                 try:
@@ -1215,7 +1216,12 @@ def stock_count_mobile(request, pk):
                         }
                     )
                     
-                    line.counted_quantity = counted_value
+                    # Legg til eller erstatt
+                    if mode == 'add' and not created and line.counted_quantity is not None:
+                        line.counted_quantity += counted_value
+                    else:
+                        line.counted_quantity = counted_value
+                    
                     line.unit = unit
                     line.counted_by = request.user
                     line.counted_at = timezone.now()
@@ -1230,10 +1236,28 @@ def stock_count_mobile(request, pk):
                         'success': True,
                         'product_name': product.name,
                         'counted': display_quantity,
-                        'message': f'{product.name}: {display_quantity} registrert'
+                        'new_total': line.counted_quantity,
+                        'message': f'{product.name}: {display_quantity} {"lagt til" if mode == "add" else "registrert"} (totalt: {line.counted_quantity})'
                     })
                 except Product.DoesNotExist:
                     return JsonResponse({'success': False, 'error': 'Produktet finnes ikke'})
+                except Exception as e:
+                    return JsonResponse({'success': False, 'error': str(e)})
+        
+        elif action == 'delete_line':
+            # Slett en tellelinje
+            product_id = request.POST.get('product_id')
+            if product_id:
+                try:
+                    line = count.lines.get(product_id=product_id)
+                    product_name = line.product.name
+                    line.delete()
+                    return JsonResponse({
+                        'success': True,
+                        'message': f'{product_name} slettet fra tellingen'
+                    })
+                except count.lines.model.DoesNotExist:
+                    return JsonResponse({'success': False, 'error': 'Fant ikke linjen'})
                 except Exception as e:
                     return JsonResponse({'success': False, 'error': str(e)})
         
