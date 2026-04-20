@@ -31,7 +31,7 @@
                 </thead>
                 <tbody>
                     {% for count in counts %}
-                    <tr>
+                    <tr onclick="window.location='{% url 'inventory:stock_count_detail' count.pk %}'" style="cursor: pointer;" class="{% if count.status == 'IN_PROGRESS' %}table-warning{% endif %}">
                         <td>
                             <strong>{{ count.name }}</strong>
                             {% if count.location %}
