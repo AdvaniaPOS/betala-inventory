@@ -1022,7 +1022,21 @@ def stock_count_detail(request, pk):
                 return redirect('inventory:stock_count_detail', pk=count.parent_count.pk)
             
             # For hovedtelling - fullfør telling og opprett justeringer
+            completion_type = request.POST.get('completion_type', 'partial')  # 'complete' eller 'partial'
+            
             with transaction.atomic():
+                # Hvis komplett telling - sett alle ikke-talte til 0
+                if completion_type == 'complete':
+                    lines.filter(counted_quantity__isnull=True).update(
+                        counted_quantity=0,
+                        counted_by=request.user,
+                        counted_at=timezone.now()
+                    )
+                    # Refresh lines for å få oppdaterte verdier
+                    lines = count.lines.select_related('product', 'product__category', 'unit').order_by(
+                        'product__category__sort_order', 'product__name'
+                    )
+                
                 for line in lines:
                     if line.counted_quantity is not None and line.variance != 0:
                         stock_tx = StockTransaction.objects.create(
@@ -1042,12 +1056,14 @@ def stock_count_detail(request, pk):
                 count.completed_by = request.user
                 count.save()
             
-            messages.success(request, 'Varetelling fullført og lagerbeholdning oppdatert')
+            type_text = 'Komplett varetelling' if completion_type == 'complete' else 'Delvis varetelling'
+            messages.success(request, f'{type_text} fullført og lagerbeholdning oppdatert')
             return redirect('inventory:stock_count_list')
     
     # Statistikk
     counted = lines.filter(counted_quantity__isnull=False).count()
     total = lines.count()
+    uncounted = total - counted
     
     # Prefetch telleenheter for alle produkter
     from django.db.models import Prefetch
@@ -1081,6 +1097,7 @@ def stock_count_detail(request, pk):
         'lines': lines,
         'counted': counted,
         'total': total,
+        'uncounted': uncounted,
         'progress': (counted / total * 100) if total > 0 else 0,
         'partial_counts': imported_partials,
         'available_for_import': available_for_import,

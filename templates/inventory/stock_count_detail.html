@@ -328,15 +328,79 @@
                     onclick="return confirm('Del telling?');">
                 <i class="bi bi-share"></i> Del telling
             </button>
+            {% if uncounted > 0 %}
+            <button type="button" class="btn btn-success btn-lg" data-bs-toggle="modal" data-bs-target="#completionTypeModal">
+                <i class="bi bi-check-lg"></i> Fullfør varetelling
+            </button>
+            {% else %}
             <button type="submit" name="action" value="finalize" 
                     class="btn btn-success btn-lg"
                     onclick="return confirm('Fullfør varetelling?');">
                 <i class="bi bi-check-lg"></i> Fullfør varetelling
             </button>
+            {% endif %}
         </div>
     </div>
     {% endif %}
 </form>
+
+<!-- Modal for valg av tellingstype -->
+{% if count.status == 'IN_PROGRESS' and uncounted > 0 %}
+<div class="modal fade" id="completionTypeModal" tabindex="-1" aria-labelledby="completionTypeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title" id="completionTypeModalLabel">
+                    <i class="bi bi-exclamation-triangle"></i> {{ uncounted }} produkt{{ uncounted|pluralize:"er" }} ikke talt
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Lukk"></button>
+            </div>
+            <div class="modal-body">
+                <p>Det er <strong>{{ uncounted }} av {{ total }}</strong> produkter som ikke har blitt talt.</p>
+                <p>Velg hvordan du vil fullføre tellingen:</p>
+                
+                <form method="post" id="finalizeForm">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="finalize">
+                    <input type="hidden" name="completion_type" id="completion_type" value="">
+                    
+                    <div class="d-grid gap-3">
+                        <button type="button" class="btn btn-outline-primary btn-lg text-start" onclick="submitCompletion('complete')">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-check-all fs-3 me-3"></i>
+                                <div>
+                                    <strong>Komplett telling</strong>
+                                    <br><small class="text-muted">Alle produkter som ikke er talt settes til 0</small>
+                                </div>
+                            </div>
+                        </button>
+                        
+                        <button type="button" class="btn btn-outline-secondary btn-lg text-start" onclick="submitCompletion('partial')">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-dash-circle fs-3 me-3"></i>
+                                <div>
+                                    <strong>Delvis telling</strong>
+                                    <br><small class="text-muted">Bare produkter som er talt oppdateres</small>
+                                </div>
+                            </div>
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Avbryt</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function submitCompletion(type) {
+    document.getElementById('completion_type').value = type;
+    document.getElementById('finalizeForm').submit();
+}
+</script>
+{% endif %}
 
 {% if count.status == 'IN_PROGRESS' %}
 <form method="post" action="{% url 'inventory:stock_count_delete' count.pk %}" class="mt-3">
