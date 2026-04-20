@@ -233,26 +233,37 @@
                             </td>
                             <td class="text-center">
                                 {% if count.status == 'IN_PROGRESS' %}
-                                <div class="d-flex justify-content-center gap-1">
-                                    <input type="number" 
-                                           name="counted_{{ line.pk }}" 
-                                           value="{% if line.counted_quantity is not None %}{% if line.unit %}{{ line.get_counted_in_unit|floatformat:2 }}{% else %}{{ line.counted_quantity }}{% endif %}{% endif %}"
-                                           class="form-control form-control-lg text-center"
-                                           style="max-width: 80px;"
-                                           min="0"
-                                           step="any"
-                                           placeholder="?">
-                                    {% if line.product.use_unit_conversion and line.product.count_units_list %}
-                                    <select name="unit_{{ line.pk }}" class="form-select" style="max-width: 120px;">
-                                        <option value="">{{ line.product.base_unit_type }}</option>
+                                {% if line.product.use_unit_conversion and line.product.count_units_list %}
+                                <div class="multi-unit-container" data-line-id="{{ line.pk }}" data-base-unit="{{ line.product.base_unit_type }}">
+                                    <!-- Hidden field for total base quantity -->
+                                    <input type="hidden" name="counted_{{ line.pk }}" id="total_{{ line.pk }}" value="{{ line.counted_quantity|default:'' }}">
+                                    
+                                    <div class="unit-rows" id="unit-rows-{{ line.pk }}">
                                         {% for unit in line.product.count_units_list %}
-                                        <option value="{{ unit.pk }}" {% if line.unit_id == unit.pk %}selected{% endif %}>
-                                            {{ unit.name }}
-                                        </option>
+                                        <div class="d-flex gap-1 mb-1 unit-row">
+                                            <input type="number" 
+                                                   class="form-control text-center unit-input"
+                                                   data-factor="{{ unit.conversion_factor }}"
+                                                   data-line="{{ line.pk }}"
+                                                   style="width: 70px;"
+                                                   min="0"
+                                                   step="any"
+                                                   placeholder="0">
+                                            <span class="input-group-text" style="font-size: 0.8rem; min-width: 80px;">{{ unit.name }}</span>
+                                        </div>
                                         {% endfor %}
-                                    </select>
-                                    {% endif %}
+                                    </div>
+                                    <small class="text-muted total-display" id="total-display-{{ line.pk }}"></small>
                                 </div>
+                                {% else %}
+                                <input type="number" 
+                                       name="counted_{{ line.pk }}" 
+                                       value="{{ line.counted_quantity|default:'' }}"
+                                       class="form-control form-control-lg text-center"
+                                       style="max-width: 100px; margin: 0 auto;"
+                                       min="0"
+                                       placeholder="?">
+                                {% endif %}
                                 {% else %}
                                 {% if line.counted_quantity is not None %}
                                     {% if line.unit %}
@@ -350,5 +361,53 @@ function toggleAll(checkbox) {
         cb.checked = checkbox.checked;
     });
 }
+
+// Multi-unit telling - beregn total fra alle enhetsfelter
+document.addEventListener('DOMContentLoaded', function() {
+    const unitInputs = document.querySelectorAll('.unit-input');
+    
+    unitInputs.forEach(function(input) {
+        input.addEventListener('input', function() {
+            updateLineTotal(this.dataset.line);
+        });
+    });
+    
+    function updateLineTotal(lineId) {
+        const container = document.querySelector(`[data-line-id="${lineId}"]`);
+        if (!container) return;
+        
+        const inputs = container.querySelectorAll('.unit-input');
+        const baseUnit = container.dataset.baseUnit || 'stk';
+        let total = 0;
+        let displayParts = [];
+        
+        inputs.forEach(function(input) {
+            const value = parseFloat(input.value.replace(',', '.')) || 0;
+            const factor = parseFloat(input.dataset.factor) || 1;
+            
+            if (value > 0) {
+                total += value * factor;
+                const unitName = input.parentElement.querySelector('.input-group-text').textContent.trim();
+                displayParts.push(`${value} ${unitName}`);
+            }
+        });
+        
+        // Oppdater hidden total field
+        const totalField = document.getElementById(`total_${lineId}`);
+        if (totalField) {
+            totalField.value = Math.round(total);
+        }
+        
+        // Oppdater visning
+        const displayEl = document.getElementById(`total-display-${lineId}`);
+        if (displayEl) {
+            if (displayParts.length > 0) {
+                displayEl.textContent = `= ${total.toLocaleString('nb-NO')} ${baseUnit}`;
+            } else {
+                displayEl.textContent = '';
+            }
+        }
+    }
+});
 </script>
 {% endblock %}

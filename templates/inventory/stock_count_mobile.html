@@ -176,26 +176,29 @@
             </div>
             
             <input type="hidden" id="selected-product-id" value="">
-            <input type="hidden" id="selected-unit-id" value="">
+            <input type="hidden" id="calculated-total" value="">
             
-            <!-- Enhetsvelger (vises bare for produkter med enhetskonvertering) -->
-            <div id="unit-selector" class="mb-3" style="display: none;">
-                <label class="form-label small text-muted">Tell i enhet:</label>
-                <select id="count-unit" class="form-select" onchange="updateSelectedUnit()">
-                    <option value="">Base-enhet</option>
-                </select>
+            <!-- Multi-unit felter (vises for produkter med enhetskonvertering) -->
+            <div id="multi-unit-section" style="display: none;">
+                <label class="form-label small text-muted">Angi antall per enhet:</label>
+                <div id="multi-unit-inputs" class="mb-2">
+                    <!-- Fylles dynamisk av JavaScript -->
+                </div>
+                <div class="text-center">
+                    <strong class="text-primary" id="mobile-total-display"></strong>
+                </div>
             </div>
             
-            <div class="d-flex align-items-center justify-content-center gap-3">
-                <button type="button" class="btn btn-outline-secondary count-btn rounded-circle" 
-                        onclick="adjustCount(-1)">-</button>
-                <input type="number" id="count-value" class="form-control count-input" 
-                       value="1" min="0" step="any" style="width: 120px;">
-                <button type="button" class="btn btn-outline-secondary count-btn rounded-circle" 
-                        onclick="adjustCount(1)">+</button>
-            </div>
-            <div class="text-center mt-1">
-                <small id="unit-label" class="text-muted"></small>
+            <!-- Enkel input (for produkter uten enhetskonvertering) -->
+            <div id="simple-count-section">
+                <div class="d-flex align-items-center justify-content-center gap-3">
+                    <button type="button" class="btn btn-outline-secondary count-btn rounded-circle" 
+                            onclick="adjustCount(-1)">-</button>
+                    <input type="number" id="count-value" class="form-control count-input" 
+                           value="1" min="0" step="any" style="width: 120px;">
+                    <button type="button" class="btn btn-outline-secondary count-btn rounded-circle" 
+                            onclick="adjustCount(1)">+</button>
+                </div>
             </div>
             
             <div class="d-grid gap-2 mt-3">
@@ -295,58 +298,102 @@ function lookupBarcode() {
     });
 }
 
+// Lagre produkt-info for senere bruk
+let currentProduct = null;
+
 // Vis produkt
 function showProduct(product) {
+    currentProduct = product;
     document.getElementById('selected-product-id').value = product.id;
     document.getElementById('product-name').textContent = product.name;
     document.getElementById('product-sku').textContent = product.sku || '-';
     document.getElementById('product-category').textContent = product.category || '-';
     document.getElementById('product-barcode').textContent = product.barcode;
     
-    // Håndter enheter
-    const unitSelector = document.getElementById('unit-selector');
-    const unitSelect = document.getElementById('count-unit');
-    const unitLabel = document.getElementById('unit-label');
+    const multiUnitSection = document.getElementById('multi-unit-section');
+    const simpleCountSection = document.getElementById('simple-count-section');
+    const multiUnitInputs = document.getElementById('multi-unit-inputs');
     
     if (product.use_unit_conversion && product.count_units && product.count_units.length > 0) {
-        // Bygg enhetsdropdown
-        unitSelect.innerHTML = `<option value="">${product.base_unit_type || 'stk'}</option>`;
+        // Bygg multi-unit input-felter
+        multiUnitInputs.innerHTML = '';
         product.count_units.forEach(unit => {
-            unitSelect.innerHTML += `<option value="${unit.id}" data-factor="${unit.conversion_factor}">${unit.name}</option>`;
+            const row = document.createElement('div');
+            row.className = 'd-flex gap-2 mb-2 align-items-center';
+            row.innerHTML = `
+                <input type="number" 
+                       class="form-control text-center mobile-unit-input" 
+                       data-factor="${unit.conversion_factor}"
+                       data-unit-name="${unit.name}"
+                       style="width: 80px; font-size: 1.2rem;"
+                       min="0" step="any" placeholder="0"
+                       oninput="updateMobileTotal()">
+                <span class="text-muted" style="min-width: 100px;">${unit.name}</span>
+            `;
+            multiUnitInputs.appendChild(row);
         });
-        unitSelector.style.display = 'block';
-        unitLabel.textContent = product.base_unit_type || 'stk';
+        
+        multiUnitSection.style.display = 'block';
+        simpleCountSection.style.display = 'none';
+        document.getElementById('mobile-total-display').textContent = '';
     } else {
-        unitSelector.style.display = 'none';
-        unitLabel.textContent = '';
+        multiUnitSection.style.display = 'none';
+        simpleCountSection.style.display = 'block';
     }
-    
-    document.getElementById('selected-unit-id').value = '';
     
     // Vis eksisterende telling hvis finnes
     if (product.existing_count !== null) {
         document.getElementById('existing-count-value').textContent = product.existing_count;
         document.getElementById('existing-count-alert').style.display = 'block';
-        document.getElementById('count-value').value = product.existing_count;
+        if (!product.use_unit_conversion) {
+            document.getElementById('count-value').value = product.existing_count;
+        }
     } else {
         document.getElementById('existing-count-alert').style.display = 'none';
-        document.getElementById('count-value').value = 1;
+        if (!product.use_unit_conversion) {
+            document.getElementById('count-value').value = 1;
+        }
     }
     
     document.getElementById('product-found').style.display = 'block';
     document.getElementById('product-found').classList.remove('success');
-    document.getElementById('count-value').focus();
-    document.getElementById('count-value').select();
+    
+    // Fokuser på første input
+    if (product.use_unit_conversion && product.count_units && product.count_units.length > 0) {
+        const firstInput = multiUnitInputs.querySelector('input');
+        if (firstInput) firstInput.focus();
+    } else {
+        document.getElementById('count-value').focus();
+        document.getElementById('count-value').select();
+    }
 }
 
-// Oppdater valgt enhet
-function updateSelectedUnit() {
-    const unitSelect = document.getElementById('count-unit');
-    const unitLabel = document.getElementById('unit-label');
-    const selectedOption = unitSelect.options[unitSelect.selectedIndex];
+// Oppdater total fra multi-unit inputs
+function updateMobileTotal() {
+    const inputs = document.querySelectorAll('.mobile-unit-input');
+    let total = 0;
+    let displayParts = [];
     
-    document.getElementById('selected-unit-id').value = unitSelect.value;
-    unitLabel.textContent = selectedOption.textContent;
+    inputs.forEach(input => {
+        const value = parseFloat(input.value.replace(',', '.')) || 0;
+        const factor = parseFloat(input.dataset.factor) || 1;
+        const unitName = input.dataset.unitName;
+        
+        if (value > 0) {
+            total += value * factor;
+            displayParts.push(`${value} ${unitName}`);
+        }
+    });
+    
+    document.getElementById('calculated-total').value = Math.round(total);
+    
+    const displayEl = document.getElementById('mobile-total-display');
+    if (displayParts.length > 0) {
+        const baseUnit = currentProduct?.base_unit_type || 'stk';
+        displayEl.textContent = `= ${total.toLocaleString('nb-NO')} ${baseUnit}`;
+    } else {
+        displayEl.textContent = '';
+    }
 }
 
 // Tøm produkt
@@ -354,13 +401,15 @@ function clearProduct() {
     document.getElementById('product-found').style.display = 'none';
     document.getElementById('barcode-input').value = '';
     document.getElementById('barcode-input').focus();
-    document.getElementById('selected-unit-id').value = '';
+    document.getElementById('calculated-total').value = '';
+    document.getElementById('multi-unit-inputs').innerHTML = '';
+    currentProduct = null;
 }
 
-// Juster telling
+// Juster telling (for enkel modus)
 function adjustCount(delta) {
     const input = document.getElementById('count-value');
-    let val = parseInt(input.value) || 0;
+    let val = parseFloat(input.value) || 0;
     val = Math.max(0, val + delta);
     input.value = val;
 }
@@ -368,20 +417,40 @@ function adjustCount(delta) {
 // Send telling
 function submitCount() {
     const productId = document.getElementById('selected-product-id').value;
-    const countedQuantity = document.getElementById('count-value').value;
-    const unitId = document.getElementById('selected-unit-id').value;
     
-    if (!productId || !countedQuantity) {
+    // Sjekk om vi bruker multi-unit eller enkel modus
+    let countedQuantity;
+    let displayQuantity;
+    
+    if (currentProduct && currentProduct.use_unit_conversion && currentProduct.count_units && currentProduct.count_units.length > 0) {
+        // Multi-unit modus - bruk kalkulert total
+        countedQuantity = document.getElementById('calculated-total').value;
+        
+        // Bygg displaystreng fra inputs
+        const inputs = document.querySelectorAll('.mobile-unit-input');
+        let parts = [];
+        inputs.forEach(input => {
+            const value = parseFloat(input.value.replace(',', '.')) || 0;
+            if (value > 0) {
+                parts.push(`${value} ${input.dataset.unitName}`);
+            }
+        });
+        displayQuantity = parts.join(' + ');
+    } else {
+        // Enkel modus
+        countedQuantity = document.getElementById('count-value').value;
+        displayQuantity = countedQuantity;
+    }
+    
+    if (!productId || !countedQuantity || countedQuantity === '0') {
         showError('Velg et produkt og angi antall');
         return;
     }
     
     hideMessages();
     
+    // For multi-unit sender vi bare total (allerede beregnet)
     let body = `action=count_product&product_id=${productId}&counted_quantity=${countedQuantity}`;
-    if (unitId) {
-        body += `&unit_id=${unitId}`;
-    }
     
     fetch('{% url "inventory:stock_count_mobile" count.pk %}', {
         method: 'POST',
@@ -394,11 +463,12 @@ function submitCount() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showSuccess(data.message);
+            // Bruk vår displayQuantity for bedre lesbarhet
+            showSuccess(`${data.product_name}: ${displayQuantity} registrert`);
             document.getElementById('product-found').classList.add('success');
             
             // Oppdater siste registreringer
-            addToRecentList(data.product_name, data.counted);
+            addToRecentList(data.product_name, displayQuantity);
             
             // Tøm etter 1.5 sekund
             setTimeout(() => {
