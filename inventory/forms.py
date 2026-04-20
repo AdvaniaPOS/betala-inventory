@@ -693,6 +693,12 @@ class ProductEditForm(forms.ModelForm):
                         Column('betala_general_ledger_account', css_class='col-md-6'),
                     ),
                 ),
+                Fieldset(
+                    'Identifikasjon',
+                    Row(
+                        Column('barcode', css_class='col-md-6'),
+                    ),
+                ),
                 Div(
                     Submit('submit', 'Lagre og synkroniser til Betala', 
                            css_class='btn-primary'),
@@ -801,6 +807,11 @@ class ProductEditForm(forms.ModelForm):
         betala_tag = self.cleaned_data.get('betala_tag')
         if betala_tag is not None:
             instance.betala_tag = int(betala_tag)
+        
+        # Lagre strekkode eksplisitt (lokalt felt, ikke synket til Betala)
+        barcode = self.cleaned_data.get('barcode')
+        if barcode is not None:
+            instance.barcode = barcode
         
         if commit:
             instance.save()
