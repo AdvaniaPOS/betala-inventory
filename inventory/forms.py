@@ -4,6 +4,7 @@ Forms for lagersystemet.
 
 from decimal import Decimal
 from django import forms
+from django.db import models
 from django.utils import timezone
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Submit, Row, Column, Fieldset, HTML, Div
@@ -11,7 +12,7 @@ from crispy_forms.layout import Layout, Submit, Row, Column, Fieldset, HTML, Div
 from .models import (
     Product, StockTransaction, ReceivingOrder, ReceivingOrderLine,
     ShrinkageEntry, StockCount, StockCountLine, Event, Supplier,
-    PurchaseOrder, PurchaseOrderLine
+    PurchaseOrder, PurchaseOrderLine, UnitOfMeasure
 )
 
 
@@ -917,3 +918,310 @@ class AddBundleItemForm(forms.Form):
         if organization_id:
             queryset = queryset.filter(betala_organization_id=organization_id)
         self.fields['product'].queryset = queryset.order_by('name')
+
+
+# =============================================================================
+# ENHETSKONVERTERING (Unit of Measure)
+# =============================================================================
+
+class UnitOfMeasureForm(forms.ModelForm):
+    """Skjema for å opprette/redigere enheter for et produkt."""
+    
+    class Meta:
+        model = UnitOfMeasure
+        fields = ['name', 'short_name', 'conversion_factor', 
+                  'is_purchase_unit', 'is_sale_unit', 'is_count_unit',
+                  'sort_order', 'is_active']
+        widgets = {
+            'name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'F.eks. Tank 30L, Glass 0.4L'
+            }),
+            'short_name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'F.eks. Tank, Glass'
+            }),
+            'conversion_factor': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': '1',
+                'placeholder': 'Antall base-enheter'
+            }),
+            'sort_order': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': '0'
+            }),
+        }
+        help_texts = {
+            'conversion_factor': 'For ml: Tank 30L = 30000, Glass 0.4L = 400',
+            'is_purchase_unit': 'Tilgjengelig ved varemottak',
+            'is_sale_unit': 'Brukes ved salg fra Betala',
+            'is_count_unit': 'Tilgjengelig ved varetelling',
+        }
+
+
+UnitOfMeasureFormSet = forms.inlineformset_factory(
+    Product,
+    UnitOfMeasure,
+    form=UnitOfMeasureForm,
+    extra=1,
+    can_delete=True
+)
+
+
+class ProductUnitConversionForm(forms.ModelForm):
+    """Skjema for å aktivere/konfigurere enhetskonvertering for et produkt."""
+    
+    class Meta:
+        model = Product
+        fields = ['base_unit_type', 'use_unit_conversion']
+        widgets = {
+            'base_unit_type': forms.Select(attrs={'class': 'form-select'}),
+        }
+        labels = {
+            'base_unit_type': 'Minste enhet (base unit)',
+            'use_unit_conversion': 'Aktiver enhetskonvertering',
+        }
+        help_texts = {
+            'base_unit_type': 'Velg ml for væsker, stk for faste varer',
+            'use_unit_conversion': 'Aktiver for produkter med flere enheter (f.eks. Tank, Glass)',
+        }
+
+
+class UnitSelectionMixin:
+    """
+    Mixin for skjemaer som trenger enhetsvalg.
+    
+    Legger til et dynamisk enhetsfelt basert på valgt produkt.
+    """
+    
+    def add_unit_field(self, product, field_name='unit', unit_types=None, required=False):
+        """
+        Legg til enhetsfelt for et produkt.
+        
+        Args:
+            product: Product-objekt
+            field_name: Navn på feltet
+            unit_types: Liste med typer ('purchase', 'sale', 'count') eller None for alle
+            required: Om feltet er påkrevd
+        """
+        if not product or not product.use_unit_conversion:
+            return
+        
+        # Bygg queryset basert på unit_types
+        qs = product.units.filter(is_active=True)
+        
+        if unit_types:
+            q_filter = None
+            if 'purchase' in unit_types:
+                q_filter = q_filter | models.Q(is_purchase_unit=True) if q_filter else models.Q(is_purchase_unit=True)
+            if 'sale' in unit_types:
+                q_filter = q_filter | models.Q(is_sale_unit=True) if q_filter else models.Q(is_sale_unit=True)
+            if 'count' in unit_types:
+                q_filter = q_filter | models.Q(is_count_unit=True) if q_filter else models.Q(is_count_unit=True)
+            if q_filter:
+                qs = qs.filter(q_filter)
+        
+        if not qs.exists():
+            return
+        
+        # Legg til base-enhet som et valg
+        choices = [('', f'Base-enhet ({product.base_unit_type})')]
+        choices.extend([
+            (str(u.id), f'{u.name} ({u.conversion_factor} {product.base_unit_type})')
+            for u in qs.order_by('sort_order', '-conversion_factor')
+        ])
+        
+        self.fields[field_name] = forms.ChoiceField(
+            label='Enhet',
+            choices=choices,
+            required=required,
+            widget=forms.Select(attrs={'class': 'form-select'})
+        )
+
+
+class ReceivingWithUnitForm(forms.Form, UnitSelectionMixin):
+    """
+    Skjema for varemottak med enhetsvalg.
+    
+    Tillater brukeren å velge hvilken enhet som mottas (f.eks. "2 Tanker").
+    """
+    product = forms.ModelChoiceField(
+        queryset=Product.objects.filter(is_active=True).exclude(betala_is_bundles=True),
+        label='Produkt',
+        widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_product'})
+    )
+    quantity = forms.IntegerField(
+        label='Antall',
+        min_value=1,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': '1'})
+    )
+    unit = forms.ChoiceField(
+        label='Enhet',
+        choices=[('', 'Velg produkt først')],
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    unit_cost_kr = forms.DecimalField(
+        label='Enhetskost (kr)',
+        max_digits=10,
+        decimal_places=2,
+        min_value=Decimal('0'),
+        required=False,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'step': '0.01',
+            'placeholder': '0,00'
+        })
+    )
+    
+    def __init__(self, *args, organization_id=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        if organization_id:
+            self.fields['product'].queryset = Product.objects.filter(
+                is_active=True,
+                betala_organization_id=organization_id
+            ).exclude(betala_is_bundles=True).order_by('name')
+    
+    def update_unit_choices(self, product):
+        """Oppdater enhetsvalg basert på valgt produkt."""
+        if not product or not product.use_unit_conversion:
+            self.fields['unit'].choices = [('', f'Standard ({product.unit if product else "stk"})')]
+            return
+        
+        units = product.get_purchase_units()
+        if not units:
+            units = product.get_all_active_units()
+        
+        choices = [('', f'Base-enhet ({product.base_unit_type})')]
+        choices.extend([
+            (str(u.id), f'{u.name} ({u.conversion_factor} {product.base_unit_type})')
+            for u in units
+        ])
+        self.fields['unit'].choices = choices
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        product = cleaned_data.get('product')
+        unit = cleaned_data.get('unit')
+        quantity = cleaned_data.get('quantity')
+        
+        if product and product.use_unit_conversion and unit:
+            try:
+                unit_obj = UnitOfMeasure.objects.get(id=int(unit), product=product)
+                # Beregn base-enheter for lagring
+                cleaned_data['base_quantity'] = unit_obj.to_base_units(quantity)
+                cleaned_data['unit_obj'] = unit_obj
+            except (UnitOfMeasure.DoesNotExist, ValueError):
+                self.add_error('unit', 'Ugyldig enhet valgt')
+        else:
+            cleaned_data['base_quantity'] = quantity
+            cleaned_data['unit_obj'] = None
+        
+        return cleaned_data
+
+
+class ShrinkageWithUnitForm(forms.ModelForm, UnitSelectionMixin):
+    """Skjema for svinnregistrering med enhetsvalg."""
+    
+    unit = forms.ChoiceField(
+        label='Enhet',
+        choices=[('', 'Standard (stk)')],
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    
+    class Meta:
+        model = ShrinkageEntry
+        fields = ['product', 'event', 'quantity', 'reason', 'location', 'notes']
+        widgets = {
+            'notes': forms.Textarea(attrs={'rows': 2}),
+        }
+    
+    def __init__(self, *args, organization_id=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        if organization_id:
+            self.fields['event'].queryset = Event.objects.filter(
+                is_active=True,
+                betala_organization_id=organization_id
+            )
+            self.fields['product'].queryset = Product.objects.filter(
+                is_active=True,
+                betala_organization_id=organization_id
+            ).exclude(betala_is_bundles=True).order_by('name')
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        product = cleaned_data.get('product')
+        unit = cleaned_data.get('unit')
+        quantity = cleaned_data.get('quantity')
+        
+        if product and product.use_unit_conversion and unit:
+            try:
+                unit_obj = UnitOfMeasure.objects.get(id=int(unit), product=product)
+                cleaned_data['base_quantity'] = unit_obj.to_base_units(quantity)
+                cleaned_data['unit_obj'] = unit_obj
+            except (UnitOfMeasure.DoesNotExist, ValueError):
+                self.add_error('unit', 'Ugyldig enhet valgt')
+        else:
+            cleaned_data['base_quantity'] = quantity if quantity else 0
+            cleaned_data['unit_obj'] = None
+        
+        return cleaned_data
+
+
+class StockCountWithUnitForm(forms.Form, UnitSelectionMixin):
+    """Skjema for varetelling med enhetsvalg."""
+    
+    counted_quantity = forms.IntegerField(
+        label='Talt antall',
+        min_value=0,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control form-control-lg text-center',
+            'style': 'max-width: 150px;'
+        })
+    )
+    unit = forms.ChoiceField(
+        label='Enhet',
+        choices=[('', 'Standard')],
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    notes = forms.CharField(
+        label='Merknad',
+        required=False,
+        widget=forms.TextInput(attrs={'placeholder': 'Valgfritt'})
+    )
+    
+    def __init__(self, *args, product=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.product = product
+        
+        if product and product.use_unit_conversion:
+            units = product.get_count_units()
+            if units:
+                choices = [('', f'Base-enhet ({product.base_unit_type})')]
+                choices.extend([
+                    (str(u.id), f'{u.name} ({u.conversion_factor} {product.base_unit_type})')
+                    for u in units
+                ])
+                self.fields['unit'].choices = choices
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        unit = cleaned_data.get('unit')
+        quantity = cleaned_data.get('counted_quantity', 0)
+        
+        if self.product and self.product.use_unit_conversion and unit:
+            try:
+                unit_obj = UnitOfMeasure.objects.get(id=int(unit), product=self.product)
+                cleaned_data['base_quantity'] = unit_obj.to_base_units(quantity)
+                cleaned_data['unit_obj'] = unit_obj
+            except (UnitOfMeasure.DoesNotExist, ValueError):
+                self.add_error('unit', 'Ugyldig enhet valgt')
+        else:
+            cleaned_data['base_quantity'] = quantity
+            cleaned_data['unit_obj'] = None
+        
+        return cleaned_data

@@ -5,7 +5,7 @@ REST API serializers for lagersystemet.
 from rest_framework import serializers
 from inventory.models import (
     Product, Category, StockLevel, StockTransaction,
-    Event, ShrinkageEntry, Supplier
+    Event, ShrinkageEntry, Supplier, UnitOfMeasure
 )
 
 
@@ -21,6 +21,16 @@ class SupplierSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'contact_person', 'email', 'phone']
 
 
+class UnitOfMeasureSerializer(serializers.ModelSerializer):
+    """Serializer for enheter."""
+    class Meta:
+        model = UnitOfMeasure
+        fields = [
+            'id', 'name', 'short_name', 'conversion_factor',
+            'is_purchase_unit', 'is_sale_unit', 'is_count_unit', 'sort_order'
+        ]
+
+
 class ProductSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
     category_id = serializers.PrimaryKeyRelatedField(
@@ -31,6 +41,8 @@ class ProductSerializer(serializers.ModelSerializer):
     )
     price_kr = serializers.SerializerMethodField()
     current_stock = serializers.SerializerMethodField()
+    units = UnitOfMeasureSerializer(many=True, read_only=True)
+    formatted_stock = serializers.SerializerMethodField()
     
     class Meta:
         model = Product
@@ -38,7 +50,8 @@ class ProductSerializer(serializers.ModelSerializer):
             'id', 'name', 'description', 'category', 'category_id',
             'sku', 'barcode', 'unit', 'price_ore', 'price_kr',
             'min_stock_level', 'track_inventory', 'is_active',
-            'current_stock', 'betala_product_id'
+            'current_stock', 'betala_product_id',
+            'base_unit_type', 'use_unit_conversion', 'units', 'formatted_stock'
         ]
     
     def get_price_kr(self, obj):
@@ -49,6 +62,12 @@ class ProductSerializer(serializers.ModelSerializer):
         if event_id:
             return obj.get_current_stock(event_id=event_id)
         return obj.get_current_stock()
+    
+    def get_formatted_stock(self, obj):
+        """Hent formatert lagerbeholdning med enheter."""
+        if obj.use_unit_conversion:
+            return obj.format_stock_display()
+        return None
 
 
 class ProductListSerializer(serializers.ModelSerializer):

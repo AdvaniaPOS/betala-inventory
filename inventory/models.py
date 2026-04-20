@@ -181,6 +181,25 @@ class Product(TimeStampedModel):
     unit = models.CharField('Enhet', max_length=50, default='stk')
     min_stock_level = models.IntegerField('Min beholdning', default=0)
     
+    # Enhetskonvertering - base unit for dette produktet
+    class BaseUnitType(models.TextChoices):
+        ML = 'ml', 'Milliliter'      # For væsker
+        CL = 'cl', 'Centiliter'      # Alternativ for væsker
+        STK = 'stk', 'Stykk'         # For faste varer
+    
+    base_unit_type = models.CharField(
+        'Base-enhet',
+        max_length=10,
+        choices=BaseUnitType.choices,
+        default=BaseUnitType.STK,
+        help_text='Den minste enheten produktet lagres i (unngår avrundingsfeil)'
+    )
+    use_unit_conversion = models.BooleanField(
+        'Bruk enhetskonvertering',
+        default=False,
+        help_text='Aktiver for produkter med flere enheter (f.eks. fatøl: Tank, Glass)'
+    )
+    
     # Leverandør
     supplier = models.ForeignKey(
         Supplier,
@@ -358,6 +377,118 @@ class Product(TimeStampedModel):
         if event:
             qs = qs.filter(event=event)
         return qs.aggregate(total=models.Sum('quantity'))['total'] or 0
+    
+    # =========================================================================
+    # ENHETSKONVERTERING (Unit of Measure)
+    # =========================================================================
+    
+    def get_purchase_units(self):
+        """Hent enheter som kan brukes ved innkjøp."""
+        if not self.use_unit_conversion:
+            return []
+        return self.units.filter(is_active=True, is_purchase_unit=True)
+    
+    def get_sale_units(self):
+        """Hent enheter som kan brukes ved salg."""
+        if not self.use_unit_conversion:
+            return []
+        return self.units.filter(is_active=True, is_sale_unit=True)
+    
+    def get_count_units(self):
+        """Hent enheter som kan brukes ved varetelling."""
+        if not self.use_unit_conversion:
+            return []
+        return self.units.filter(is_active=True, is_count_unit=True)
+    
+    def get_all_active_units(self):
+        """Hent alle aktive enheter for produktet."""
+        if not self.use_unit_conversion:
+            return []
+        return self.units.filter(is_active=True).order_by('sort_order', '-conversion_factor')
+    
+    def convert_to_base_units(self, quantity: int, unit_id: int) -> int:
+        """
+        Konverter en mengde fra en spesifikk enhet til base-enheter.
+        
+        Args:
+            quantity: Antall i den gitte enheten
+            unit_id: ID til UnitOfMeasure
+            
+        Returns:
+            Antall i base-enheter (heltall)
+            
+        Raises:
+            ValueError: Hvis enheten ikke finnes eller ikke tilhører dette produktet
+        """
+        if not self.use_unit_conversion:
+            # Ingen enhetskonvertering - returner som-er
+            return quantity
+        
+        try:
+            unit = self.units.get(id=unit_id, is_active=True)
+            return unit.to_base_units(quantity)
+        except Exception as e:
+            raise ValueError(f"Ugyldig enhet (ID: {unit_id}) for produkt {self.name}") from e
+    
+    def format_stock_display(self, base_quantity: int = None, event=None) -> str:
+        """
+        Formater lagerbeholdning til menneskelig lesbar streng.
+        
+        Eksempel: 35500 ml -> "1 Tank 30L, 5 Liter, 500 ml"
+        
+        Args:
+            base_quantity: Antall i base-enheter. Hvis None, hentes fra StockLevel.
+            event: Filtrer på event (valgfritt)
+            
+        Returns:
+            Formatert streng
+        """
+        if base_quantity is None:
+            base_quantity = self.get_current_stock(event)
+        
+        if not self.use_unit_conversion:
+            # Enkel visning uten konvertering
+            return f"{base_quantity} {self.unit or self.base_unit_type}"
+        
+        # Hent enheter sortert fra størst til minst
+        units = list(self.units.filter(is_active=True).order_by('-conversion_factor'))
+        
+        if not units:
+            return f"{base_quantity} {self.base_unit_type}"
+        
+        parts = []
+        remaining = base_quantity
+        
+        for unit in units:
+            if unit.conversion_factor <= remaining:
+                whole, remaining = unit.from_base_units(remaining)
+                if whole > 0:
+                    parts.append(f"{whole} {unit.short_name or unit.name}")
+        
+        # Legg til rest i base-enheter hvis det er noe igjen
+        if remaining > 0:
+            parts.append(f"{remaining} {self.base_unit_type}")
+        
+        if not parts:
+            return f"0 {self.base_unit_type}"
+        
+        return ", ".join(parts)
+    
+    def validate_stock_for_transaction(self, quantity_base_units: int, event=None) -> tuple:
+        """
+        Valider at det er nok på lager for en transaksjon (uttak).
+        
+        Args:
+            quantity_base_units: Antall base-enheter som skal tas ut (positivt tall)
+            event: Event å sjekke mot
+            
+        Returns:
+            tuple: (is_valid, current_stock, new_stock)
+        """
+        current = self.get_current_stock(event)
+        new_stock = current - quantity_base_units
+        
+        return (new_stock >= 0, current, new_stock)
     
     def get_bundle_contents(self):
         """
@@ -1451,3 +1582,102 @@ class AllowedOrganization(TimeStampedModel):
 
     def __str__(self):
         return f"{self.name} ({self.betala_org_id})"
+
+
+# =============================================================================
+# ENHETSKONVERTERING (UNIT OF MEASURE)
+# =============================================================================
+
+class UnitOfMeasure(TimeStampedModel):
+    """
+    Enheter for et produkt med konverteringsfaktor.
+    
+    Alle mengder lagres internt i produktets base_unit (ml, cl, stk).
+    Denne modellen definerer "menneskelige" enheter som Tank, Flaske, Glass etc.
+    
+    Eksempel for fatøl:
+        - Base unit: ml
+        - Tank 30L: conversion_factor = 30000 (30L * 1000ml)
+        - Dunk 3L: conversion_factor = 3000
+        - Glass 0.4L: conversion_factor = 400
+    """
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        verbose_name='Produkt',
+        related_name='units'
+    )
+    
+    name = models.CharField(
+        'Enhetsnavn',
+        max_length=100,
+        help_text='F.eks. "Tank 30L", "Flaske 0.33L", "Glass 0.4L"'
+    )
+    short_name = models.CharField(
+        'Kortform',
+        max_length=20,
+        blank=True,
+        help_text='F.eks. "Tank", "Fl", "Glass"'
+    )
+    
+    conversion_factor = models.PositiveIntegerField(
+        'Konverteringsfaktor',
+        validators=[MinValueValidator(1)],
+        help_text='Antall base-enheter (ml eller stk) denne enheten tilsvarer'
+    )
+    
+    # Bruksområder - hvilke operasjoner kan denne enheten brukes til?
+    is_purchase_unit = models.BooleanField(
+        'Innkjøpsenhet',
+        default=False,
+        help_text='Kan brukes ved innkjøp/varemottak'
+    )
+    is_sale_unit = models.BooleanField(
+        'Salgsenhet',
+        default=False,
+        help_text='Brukes for salg fra Betala'
+    )
+    is_count_unit = models.BooleanField(
+        'Telleenhet',
+        default=True,
+        help_text='Kan brukes ved varetelling'
+    )
+    
+    # Sortering
+    sort_order = models.IntegerField(
+        'Sortering',
+        default=0,
+        help_text='Lavere tall = vises først (brukes for format_stock_display)'
+    )
+    
+    # Aktiv
+    is_active = models.BooleanField('Aktiv', default=True)
+
+    class Meta:
+        verbose_name = 'Enhet'
+        verbose_name_plural = 'Enheter'
+        ordering = ['product', 'sort_order', '-conversion_factor']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['product', 'name'],
+                name='unique_unit_name_per_product'
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.conversion_factor} {self.product.base_unit_type})"
+    
+    def to_base_units(self, quantity: int) -> int:
+        """Konverter en mengde i denne enheten til base-enheter."""
+        return quantity * self.conversion_factor
+    
+    def from_base_units(self, base_quantity: int) -> tuple:
+        """
+        Konverter base-enheter til denne enheten.
+        
+        Returns:
+            tuple: (whole_units, remainder_in_base_units)
+        """
+        whole_units = base_quantity // self.conversion_factor
+        remainder = base_quantity % self.conversion_factor
+        return whole_units, remainder

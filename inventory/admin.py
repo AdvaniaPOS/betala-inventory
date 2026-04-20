@@ -11,7 +11,7 @@ from .models import (
     Supplier, Event, Category, Product, StockLevel,
     StockTransaction, ReceivingOrder, ReceivingOrderLine,
     ShrinkageEntry, StockCount, StockCountLine, BetalaSyncLog,
-    PurchaseOrder, PurchaseOrderLine, AllowedOrganization
+    PurchaseOrder, PurchaseOrderLine, AllowedOrganization, UnitOfMeasure
 )
 
 
@@ -62,6 +62,13 @@ class PurchaseOrderLineInline(admin.TabularInline):
     extra = 1
     autocomplete_fields = ['product']
     readonly_fields = ['remaining_quantity']
+
+
+class UnitOfMeasureInline(admin.TabularInline):
+    model = UnitOfMeasure
+    extra = 0
+    fields = ['name', 'short_name', 'conversion_factor', 'is_purchase_unit', 
+              'is_sale_unit', 'is_count_unit', 'sort_order', 'is_active']
 
 
 # =============================================================================
@@ -116,13 +123,13 @@ class ProductAdmin(ImportExportModelAdmin):
     resource_class = ProductResource
     
     list_display = ['name', 'category', 'price_display', 'min_stock_level', 
-                    'track_inventory', 'is_active', 'betala_product_id']
-    list_filter = ['category', 'is_active', 'track_inventory', 'supplier']
+                    'track_inventory', 'is_active', 'use_unit_conversion', 'betala_product_id']
+    list_filter = ['category', 'is_active', 'track_inventory', 'use_unit_conversion', 'supplier']
     search_fields = ['name', 'sku', 'barcode', 'description']
     autocomplete_fields = ['category', 'supplier']
     list_editable = ['min_stock_level', 'track_inventory']
     
-    inlines = [StockLevelInline]
+    inlines = [UnitOfMeasureInline, StockLevelInline]
     
     fieldsets = (
         (None, {
@@ -133,6 +140,10 @@ class ProductAdmin(ImportExportModelAdmin):
         }),
         ('Lager', {
             'fields': ('sku', 'barcode', 'unit', 'min_stock_level', 'track_inventory')
+        }),
+        ('Enhetskonvertering', {
+            'fields': ('base_unit_type', 'use_unit_conversion'),
+            'description': 'Aktiver enhetskonvertering for produkter med flere enheter (f.eks. fatøl: Tank, Glass)',
         }),
         ('Innkjøp', {
             'fields': ('supplier', 'purchase_price_ore')
@@ -309,6 +320,31 @@ class AllowedOrganizationAdmin(admin.ModelAdmin):
                 })
             )
         return fieldsets
+
+
+@admin.register(UnitOfMeasure)
+class UnitOfMeasureAdmin(admin.ModelAdmin):
+    """Admin for å administrere enheter."""
+    list_display = ['name', 'product', 'conversion_factor', 'short_name',
+                    'is_purchase_unit', 'is_sale_unit', 'is_count_unit', 'is_active']
+    list_filter = ['is_active', 'is_purchase_unit', 'is_sale_unit', 'is_count_unit', 
+                   'product__category']
+    search_fields = ['name', 'product__name']
+    autocomplete_fields = ['product']
+    list_editable = ['is_active']
+    ordering = ['product', 'sort_order', '-conversion_factor']
+    
+    fieldsets = (
+        (None, {
+            'fields': ('product', 'name', 'short_name', 'conversion_factor')
+        }),
+        ('Bruksområder', {
+            'fields': ('is_purchase_unit', 'is_sale_unit', 'is_count_unit')
+        }),
+        ('Sortering og status', {
+            'fields': ('sort_order', 'is_active')
+        }),
+    )
 
 
 # Admin site customization
