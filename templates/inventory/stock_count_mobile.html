@@ -422,6 +422,9 @@ function hideMessages() {
 }
 
 // Kamera-skanning med QuaggaJS
+let lastBarcodes = [];  // Buffer for å kreve flere like avlesninger
+const REQUIRED_CONSISTENT_READS = 3;  // Krever 3 like avlesninger
+
 function startCamera() {
     if (typeof Quagga === 'undefined') {
         showError('Kameraskanning er ikke tilgjengelig i denne nettleseren');
@@ -438,9 +441,10 @@ function startCamera() {
         return;
     }
     
-    // Tøm viewport
+    // Tøm viewport og buffer
     const viewport = document.getElementById('scanner-viewport');
     viewport.innerHTML = '';
+    lastBarcodes = [];
     
     // Legg til skannelinjen
     const scanLine = document.createElement('div');
@@ -460,18 +464,19 @@ function startCamera() {
         },
         locator: {
             patchSize: "medium",
-            halfSample: true
+            halfSample: false  // Bedre nøyaktighet
         },
         numOfWorkers: navigator.hardwareConcurrency || 2,
         decoder: {
             readers: [
-                "ean_reader",
-                "ean_8_reader",
+                "ean_reader",      // EAN-13 først (prioritert)
                 "code_128_reader",
-                "code_39_reader"
+                "code_39_reader",
+                "ean_8_reader"     // EAN-8 sist (lavere prioritet - ofte pantekoder)
             ]
         },
-        locate: true
+        locate: true,
+        frequency: 10  // Scan 10 ganger per sekund
     }, function(err) {
         if (err) {
             console.error('Quagga init error:', err);
@@ -497,6 +502,44 @@ function startCamera() {
     Quagga.onDetected(function(result) {
         if (result && result.codeResult && result.codeResult.code) {
             const barcode = result.codeResult.code;
+            const format = result.codeResult.format;
+            
+            // Sjekk konfidensen - avvis lave verdier
+            const errors = result.codeResult.decodedCodes
+                .filter(x => x.error !== undefined)
+                .map(x => x.error);
+            const avgError = errors.reduce((a, b) => a + b, 0) / errors.length;
+            
+            // Avvis hvis feilraten er for høy (over 0.15)
+            if (avgError > 0.15) {
+                console.log('Avvist pga høy feilrate:', barcode, avgError);
+                return;
+            }
+            
+            // Prioriter EAN-13 over EAN-8 (pantekoder er ofte EAN-8)
+            // Hvis vi har en EAN-13 i bufferen, ignorer EAN-8
+            if (format === 'ean_8' && lastBarcodes.some(b => b.length === 13)) {
+                console.log('Ignorerer EAN-8, har allerede EAN-13:', barcode);
+                return;
+            }
+            
+            // Legg til i buffer
+            lastBarcodes.push(barcode);
+            if (lastBarcodes.length > 10) {
+                lastBarcodes.shift();  // Behold bare de siste 10
+            }
+            
+            // Tell antall like koder
+            const count = lastBarcodes.filter(b => b === barcode).length;
+            console.log('Leste:', barcode, '(' + format + ') - Antall:', count + '/' + REQUIRED_CONSISTENT_READS);
+            
+            // Krever flere konsistente avlesninger
+            if (count < REQUIRED_CONSISTENT_READS) {
+                return;  // Vent på flere like avlesninger
+            }
+            
+            // Tøm buffer og fortsett med oppslag
+            lastBarcodes = [];
             
             // Stopp skanning midlertidig
             Quagga.pause();
