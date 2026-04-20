@@ -934,6 +934,17 @@ class ReceivingOrderLine(TimeStampedModel):
         verbose_name='Produkt'
     )
     
+    # Enhet brukt ved mottak (for enhetskonvertering)
+    unit = models.ForeignKey(
+        'UnitOfMeasure',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name='Enhet',
+        related_name='receiving_lines',
+        help_text='Hvilken enhet ble brukt ved mottak (f.eks. Fat 300L)'
+    )
+    
     # Kobling til innkjøpsordrelinje (for delmottak)
     purchase_order_line = models.ForeignKey(
         'PurchaseOrderLine',

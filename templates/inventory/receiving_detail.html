@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load humanize %}
 
 {% block title %}Varemottak #{{ order.pk }}{% endblock %}
 
@@ -89,9 +90,8 @@
             <thead class="table-light">
                 <tr>
                     <th>Produkt</th>
-                    <th class="text-end">Forventet</th>
                     <th class="text-end">Mottatt</th>
-                    <th class="text-end">Differanse</th>
+                    <th>Enhet</th>
                     <th class="text-end">Enhetskost</th>
                     <th>Batch</th>
                     <th>Utløp</th>
@@ -106,21 +106,19 @@
                         <br><small class="text-muted">{{ line.notes }}</small>
                         {% endif %}
                     </td>
-                    <td class="text-end">{{ line.quantity_expected|default:"-" }}</td>
-                    <td class="text-end">{{ line.quantity_received }}</td>
                     <td class="text-end">
-                        {% if line.quantity_expected %}
-                            {% with diff=line.quantity_received|add:"-"|add:line.quantity_expected %}
-                            {% if diff > 0 %}
-                            <span class="text-success">+{{ diff }}</span>
-                            {% elif diff < 0 %}
-                            <span class="text-danger">{{ diff }}</span>
-                            {% else %}
-                            <span class="text-muted">0</span>
-                            {% endif %}
-                            {% endwith %}
+                        {% if line.unit %}
+                        {{ line.quantity_received|divisibleby:line.unit.conversion_factor }}
                         {% else %}
-                        -
+                        {{ line.quantity_received }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if line.unit %}
+                        <span class="badge bg-info">{{ line.unit.name }}</span>
+                        <br><small class="text-muted">= {{ line.quantity_received|intcomma }} {{ line.product.base_unit_type }}</small>
+                        {% else %}
+                        <span class="text-muted">{{ line.product.unit|default:"stk" }}</span>
                         {% endif %}
                     </td>
                     <td class="text-end">

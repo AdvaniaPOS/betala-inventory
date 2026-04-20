@@ -114,7 +114,7 @@ class ReceivingOrderForm(forms.ModelForm):
 
 
 class ReceivingOrderLineForm(forms.ModelForm):
-    """Skjema for en linje i varemottak."""
+    """Skjema for en linje i varemottak med enhetskonvertering."""
     
     # Bruk desimalfelt for kr i stedet for øre
     unit_cost_kr = forms.DecimalField(
@@ -130,12 +130,31 @@ class ReceivingOrderLineForm(forms.ModelForm):
         })
     )
     
+    # Enhet for varemottak (dynamisk fylt via JavaScript)
+    unit_id = forms.IntegerField(
+        required=False,
+        widget=forms.HiddenInput(attrs={'class': 'unit-id-field'})
+    )
+    
+    # Antall i valgt enhet (brukerens input)
+    quantity_in_unit = forms.IntegerField(
+        label='Antall',
+        min_value=0,
+        required=False,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control quantity-in-unit',
+            'min': '0',
+            'placeholder': '0'
+        })
+    )
+    
     class Meta:
         model = ReceivingOrderLine
         fields = ['product', 'quantity_expected', 'quantity_received',
-                  'batch_number', 'expiry_date', 'notes']
+                  'batch_number', 'expiry_date', 'notes', 'unit']
         widgets = {
             'expiry_date': forms.DateInput(attrs={'type': 'date'}),
+            'quantity_received': forms.HiddenInput(),  # Skjult - beregnes fra quantity_in_unit
         }
     
     def __init__(self, *args, organization_id=None, **kwargs):
@@ -150,22 +169,50 @@ class ReceivingOrderLineForm(forms.ModelForm):
             self.fields['product'].queryset = Product.objects.filter(
                 is_active=True
             ).exclude(betala_is_bundles=True).order_by('name')
+        
         # Konverter øre til kr ved visning
         if self.instance and self.instance.pk and self.instance.unit_cost_ore:
             self.fields['unit_cost_kr'].initial = self.instance.unit_cost_ore / 100
-        # Gjør quantity_received valgfritt (settes til 0 hvis tom)
+        
+        # Hvis eksisterende linje med enhet, sett quantity_in_unit
+        if self.instance and self.instance.pk and self.instance.unit:
+            # Konverter tilbake fra base til enhet
+            self.fields['quantity_in_unit'].initial = (
+                self.instance.quantity_received // self.instance.unit.conversion_factor
+            )
+        elif self.instance and self.instance.pk:
+            self.fields['quantity_in_unit'].initial = self.instance.quantity_received
+        
+        # Gjør quantity_received valgfritt (beregnes)
         self.fields['quantity_received'].required = False
+        self.fields['quantity_expected'].required = False
     
     def clean(self):
         cleaned_data = super().clean()
         product = cleaned_data.get('product')
-        quantity_received = cleaned_data.get('quantity_received')
+        quantity_in_unit = cleaned_data.get('quantity_in_unit')
+        unit_id = cleaned_data.get('unit_id')
         unit_cost_kr = cleaned_data.get('unit_cost_kr')
         
-        # Hvis et produkt er valgt, kreves mottatt antall og enhetspris
+        # Hvis et produkt er valgt, kreves antall og enhetspris
         if product:
-            if not quantity_received and quantity_received != 0:
-                cleaned_data['quantity_received'] = 0
+            if not quantity_in_unit and quantity_in_unit != 0:
+                quantity_in_unit = 0
+            
+            # Beregn quantity_received basert på enhet
+            if unit_id and product.use_unit_conversion:
+                try:
+                    from .models import UnitOfMeasure
+                    unit = UnitOfMeasure.objects.get(id=unit_id, product=product)
+                    cleaned_data['quantity_received'] = quantity_in_unit * unit.conversion_factor
+                    cleaned_data['unit'] = unit
+                except UnitOfMeasure.DoesNotExist:
+                    cleaned_data['quantity_received'] = quantity_in_unit
+                    cleaned_data['unit'] = None
+            else:
+                cleaned_data['quantity_received'] = quantity_in_unit
+                cleaned_data['unit'] = None
+            
             if unit_cost_kr is None:
                 self.add_error('unit_cost_kr', 'Enhetskost er påkrevd når produkt er valgt')
         
@@ -173,12 +220,18 @@ class ReceivingOrderLineForm(forms.ModelForm):
     
     def save(self, commit=True):
         instance = super().save(commit=False)
+        
+        # Sett unit fra cleaned_data
+        if 'unit' in self.cleaned_data:
+            instance.unit = self.cleaned_data.get('unit')
+        
         # Konverter kr til øre ved lagring
         unit_cost_kr = self.cleaned_data.get('unit_cost_kr')
         if unit_cost_kr is not None:
             instance.unit_cost_ore = int(unit_cost_kr * 100)
         else:
             instance.unit_cost_ore = 0
+        
         if commit:
             instance.save()
         return instance

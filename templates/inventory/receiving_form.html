@@ -88,36 +88,38 @@
                 <table class="table table-borderless" id="lines-table">
                     <thead class="table-light">
                         <tr>
-                            <th style="width: 30%">Produkt</th>
-                            <th style="width: 12%">Forventet</th>
-                            <th style="width: 12%">Mottatt</th>
-                            <th style="width: 15%">Enhetskost (kr eks. mva)</th>
-                            <th style="width: 15%">Batch</th>
+                            <th style="width: 28%">Produkt</th>
+                            <th style="width: 12%">Antall</th>
+                            <th style="width: 18%">Enhet</th>
+                            <th style="width: 14%">Enhetskost (kr)</th>
+                            <th style="width: 12%">Batch</th>
                             <th style="width: 12%">Utløp</th>
                             <th style="width: 4%"></th>
                         </tr>
                     </thead>
                     <tbody id="formset-container">
                         {% for line_form in formset %}
-                        <tr class="line-row {% if line_form.errors %}table-danger{% endif %}">
+                        <tr class="line-row {% if line_form.errors %}table-danger{% endif %}" data-form-index="{{ forloop.counter0 }}">
                             <td>
                                 {{ line_form.id }}
+                                {{ line_form.quantity_received }}
+                                {{ line_form.unit_id }}
                                 {{ line_form.product }}
                                 {% if line_form.product.errors %}
                                 <small class="text-danger">{{ line_form.product.errors.0 }}</small>
                                 {% endif %}
                             </td>
                             <td>
-                                {{ line_form.quantity_expected }}
-                                {% if line_form.quantity_expected.errors %}
-                                <small class="text-danger">{{ line_form.quantity_expected.errors.0 }}</small>
+                                {{ line_form.quantity_in_unit }}
+                                {% if line_form.quantity_in_unit.errors %}
+                                <small class="text-danger">{{ line_form.quantity_in_unit.errors.0 }}</small>
                                 {% endif %}
                             </td>
                             <td>
-                                {{ line_form.quantity_received }}
-                                {% if line_form.quantity_received.errors %}
-                                <small class="text-danger">{{ line_form.quantity_received.errors.0 }}</small>
-                                {% endif %}
+                                <select name="lines-{{ forloop.counter0 }}-unit_select" class="form-select unit-select" data-form-index="{{ forloop.counter0 }}">
+                                    <option value="">Velg produkt først</option>
+                                </select>
+                                <small class="text-muted unit-info"></small>
                             </td>
                             <td>
                                 {{ line_form.unit_cost_kr }}
@@ -145,7 +147,8 @@
             
             <div class="text-muted small">
                 <i class="bi bi-info-circle"></i> 
-                Merk "Slett" for å fjerne en linje. Tomme linjer blir ignorert.
+                Velg enhet for produkter med enhetskonvertering (f.eks. Fat 300L for øl).
+                Merk "Slett" for å fjerne en linje.
             </div>
         </div>
     </div>
@@ -184,22 +187,135 @@ document.addEventListener('DOMContentLoaded', function() {
     const addBtn = document.getElementById('add-line');
     const totalForms = document.getElementById('id_lines-TOTAL_FORMS');
     
+    // Cache for produktenheter
+    const unitCache = {};
+    
+    // Hent enheter for et produkt fra API
+    async function fetchProductUnits(productId) {
+        if (unitCache[productId]) {
+            return unitCache[productId];
+        }
+        
+        try {
+            const response = await fetch(`/api/products/${productId}/units/?type=purchase`);
+            if (!response.ok) throw new Error('Kunne ikke hente enheter');
+            const data = await response.json();
+            unitCache[productId] = data;
+            return data;
+        } catch (error) {
+            console.error('Feil ved henting av enheter:', error);
+            return { use_unit_conversion: false, units: [], base_unit_type: 'stk' };
+        }
+    }
+    
+    // Oppdater enhetsdropdown for en rad
+    async function updateUnitDropdown(row, productId) {
+        const unitSelect = row.querySelector('.unit-select');
+        const unitInfo = row.querySelector('.unit-info');
+        const unitIdField = row.querySelector('.unit-id-field');
+        const formIndex = row.dataset.formIndex;
+        
+        if (!productId) {
+            unitSelect.innerHTML = '<option value="">Velg produkt først</option>';
+            unitSelect.disabled = true;
+            unitInfo.textContent = '';
+            if (unitIdField) unitIdField.value = '';
+            return;
+        }
+        
+        const data = await fetchProductUnits(productId);
+        
+        if (!data.use_unit_conversion || data.units.length === 0) {
+            // Ingen enhetskonvertering - vis standard
+            unitSelect.innerHTML = `<option value="">Standard (${data.base_unit_type || 'stk'})</option>`;
+            unitSelect.disabled = true;
+            unitInfo.textContent = '';
+            if (unitIdField) unitIdField.value = '';
+        } else {
+            // Bygg dropdown med enheter
+            let options = `<option value="">Base (${data.base_unit_type})</option>`;
+            data.units.forEach(unit => {
+                options += `<option value="${unit.id}" data-factor="${unit.conversion_factor}">
+                    ${unit.name} (${unit.conversion_factor.toLocaleString('nb-NO')} ${data.base_unit_type})
+                </option>`;
+            });
+            unitSelect.innerHTML = options;
+            unitSelect.disabled = false;
+            unitInfo.textContent = `Velg enhet for innkjøp`;
+        }
+    }
+    
+    // Håndter enhetsvalg
+    function handleUnitChange(row) {
+        const unitSelect = row.querySelector('.unit-select');
+        const unitIdField = row.querySelector('.unit-id-field');
+        const unitInfo = row.querySelector('.unit-info');
+        const quantityField = row.querySelector('.quantity-in-unit');
+        
+        const selectedOption = unitSelect.options[unitSelect.selectedIndex];
+        const unitId = unitSelect.value;
+        const factor = selectedOption?.dataset?.factor;
+        
+        if (unitIdField) {
+            unitIdField.value = unitId || '';
+        }
+        
+        if (factor && quantityField && quantityField.value) {
+            const qty = parseInt(quantityField.value) || 0;
+            const total = qty * parseInt(factor);
+            unitInfo.textContent = `= ${total.toLocaleString('nb-NO')} base-enheter`;
+        } else {
+            unitInfo.textContent = '';
+        }
+    }
+    
+    // Håndter produktendring
+    function setupProductChangeHandler(row) {
+        const productSelect = row.querySelector('select[name$="-product"]');
+        const unitSelect = row.querySelector('.unit-select');
+        const quantityField = row.querySelector('.quantity-in-unit');
+        
+        if (productSelect) {
+            productSelect.addEventListener('change', function() {
+                updateUnitDropdown(row, this.value);
+            });
+            
+            // Initial load for eksisterende verdi
+            if (productSelect.value) {
+                updateUnitDropdown(row, productSelect.value);
+            }
+        }
+        
+        if (unitSelect) {
+            unitSelect.addEventListener('change', function() {
+                handleUnitChange(row);
+            });
+        }
+        
+        if (quantityField) {
+            quantityField.addEventListener('input', function() {
+                handleUnitChange(row);
+            });
+        }
+    }
+    
+    // Sett opp handlers for alle eksisterende rader
+    container.querySelectorAll('.line-row').forEach(row => {
+        setupProductChangeHandler(row);
+    });
+    
+    // Legg til ny linje
     addBtn.addEventListener('click', function() {
         const formCount = parseInt(totalForms.value);
         const lastRow = container.querySelector('.line-row:last-child');
         
         if (lastRow) {
             const newRow = lastRow.cloneNode(true);
+            newRow.dataset.formIndex = formCount;
             
-            // Oppdater form indeks
-            newRow.innerHTML = newRow.innerHTML.replace(
-                /lines-\d+-/g, 
-                'lines-' + formCount + '-'
-            );
-            newRow.innerHTML = newRow.innerHTML.replace(
-                /lines-\d+/g, 
-                'lines-' + formCount
-            );
+            // Oppdater form indeks i alle feltnavn og id-er
+            newRow.innerHTML = newRow.innerHTML.replace(/lines-\d+-/g, 'lines-' + formCount + '-');
+            newRow.innerHTML = newRow.innerHTML.replace(/lines-\d+/g, 'lines-' + formCount);
             
             // Tøm verdier
             newRow.querySelectorAll('input[type="text"], input[type="number"], input[type="date"]').forEach(input => {
@@ -211,9 +327,30 @@ document.addEventListener('DOMContentLoaded', function() {
             newRow.querySelectorAll('input[type="checkbox"]').forEach(cb => {
                 cb.checked = false;
             });
+            newRow.querySelectorAll('input[type="hidden"]').forEach(hidden => {
+                if (!hidden.name.includes('TOTAL') && !hidden.name.includes('INITIAL')) {
+                    hidden.value = '';
+                }
+            });
+            
+            // Reset unit dropdown
+            const unitSelect = newRow.querySelector('.unit-select');
+            if (unitSelect) {
+                unitSelect.innerHTML = '<option value="">Velg produkt først</option>';
+                unitSelect.disabled = true;
+            }
+            const unitInfo = newRow.querySelector('.unit-info');
+            if (unitInfo) unitInfo.textContent = '';
+            
+            // Fjern eventuelle feilmeldinger
+            newRow.classList.remove('table-danger');
+            newRow.querySelectorAll('.text-danger').forEach(el => el.remove());
             
             container.appendChild(newRow);
             totalForms.value = formCount + 1;
+            
+            // Sett opp handlers for ny rad
+            setupProductChangeHandler(newRow);
         }
     });
 });
