@@ -29,8 +29,8 @@
                 <thead class="table-light">
                     <tr>
                         <th>Produkt</th>
-                        <th>Lokasjon</th>
-                        <th class="text-end">Min. nivå</th>
+                        <th class="d-none d-md-table-cell">Lokasjon</th>
+                        <th class="text-end d-none d-md-table-cell">Min. nivå</th>
                         <th class="text-end">Beholdning</th>
                         <th>Status</th>
                     </tr>
@@ -43,8 +43,8 @@
                                 {{ sl.product.name }}
                             </a>
                         </td>
-                        <td class="text-muted">{{ sl.location|default:"-" }}</td>
-                        <td class="text-end">{{ sl.product.min_stock_level }}</td>
+                        <td class="text-muted d-none d-md-table-cell">{{ sl.location|default:"-" }}</td>
+                        <td class="text-end d-none d-md-table-cell">{{ sl.product.min_stock_level }}</td>
                         <td class="text-end">
                             <strong>{{ sl.quantity }}</strong> {{ sl.product.unit }}
                         </td>

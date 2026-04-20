@@ -40,19 +40,19 @@
             <table class="table table-hover mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th>Dato</th>
+                        <th class="d-none d-md-table-cell">Dato</th>
                         <th>Produkt</th>
                         <th class="text-center">Antall</th>
                         <th>Årsak</th>
-                        <th>Sted</th>
-                        <th>Registrert av</th>
-                        <th>Notater</th>
+                        <th class="d-none d-lg-table-cell">Sted</th>
+                        <th class="d-none d-md-table-cell">Registrert av</th>
+                        <th class="d-none d-lg-table-cell">Notater</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for entry in entries %}
                     <tr>
-                        <td>
+                        <td class="d-none d-md-table-cell">
                             <small>{{ entry.registered_date|date:"d.m.Y H:i" }}</small>
                         </td>
                         <td>
@@ -75,9 +75,9 @@
                                 {{ entry.get_reason_display }}
                             </span>
                         </td>
-                        <td>{{ entry.location|default:"-" }}</td>
-                        <td>{{ entry.registered_by.username|default:"-" }}</td>
-                        <td>
+                        <td class="d-none d-lg-table-cell">{{ entry.location|default:"-" }}</td>
+                        <td class="d-none d-md-table-cell">{{ entry.registered_by.username|default:"-" }}</td>
+                        <td class="d-none d-lg-table-cell">
                             {% if entry.notes %}
                             <small class="text-muted" title="{{ entry.notes }}">
                                 {{ entry.notes|truncatewords:5 }}

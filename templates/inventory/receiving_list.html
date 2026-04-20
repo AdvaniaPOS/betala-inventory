@@ -22,24 +22,24 @@
         <table class="table table-hover mb-0">
             <thead class="table-light">
                 <tr>
-                    <th>#</th>
+                    <th class="d-none d-md-table-cell">#</th>
                     <th>Dato</th>
-                    <th>Event</th>
+                    <th class="d-none d-lg-table-cell">Event</th>
                     <th>Leverandør</th>
-                    <th>Ordrenummer</th>
+                    <th class="d-none d-lg-table-cell">Ordrenummer</th>
                     <th>Status</th>
-                    <th>Mottatt av</th>
+                    <th class="d-none d-md-table-cell">Mottatt av</th>
                     <th></th>
                 </tr>
             </thead>
             <tbody>
                 {% for order in orders %}
                 <tr>
-                    <td><strong>{{ order.pk }}</strong></td>
+                    <td class="d-none d-md-table-cell"><strong>{{ order.pk }}</strong></td>
                     <td>{{ order.received_date|date:"d.m.Y" }}</td>
-                    <td>{{ order.event.name }}</td>
+                    <td class="d-none d-lg-table-cell">{{ order.event.name }}</td>
                     <td>{{ order.supplier.name|default:"-" }}</td>
-                    <td>{{ order.order_number|default:"-" }}</td>
+                    <td class="d-none d-lg-table-cell">{{ order.order_number|default:"-" }}</td>
                     <td>
                         {% if order.status == 'PENDING' %}
                         <span class="badge bg-warning">Venter</span>
@@ -51,7 +51,7 @@
                         <span class="badge bg-secondary">{{ order.get_status_display }}</span>
                         {% endif %}
                     </td>
-                    <td>{{ order.received_by.get_full_name|default:order.received_by.username|default:"-" }}</td>
+                    <td class="d-none d-md-table-cell">{{ order.received_by.get_full_name|default:order.received_by.username|default:"-" }}</td>
                     <td class="text-end">
                         <a href="{% url 'inventory:receiving_detail' pk=order.pk %}" class="btn btn-sm btn-outline-primary">
                             <i class="bi bi-eye"></i> Vis

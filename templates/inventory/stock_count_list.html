@@ -20,12 +20,12 @@
                 <thead class="table-light">
                     <tr>
                         <th>Navn</th>
-                        <th>Event</th>
+                        <th class="d-none d-lg-table-cell">Event</th>
                         <th>Status</th>
-                        <th class="text-center">Deltellinger</th>
-                        <th>Startet</th>
-                        <th>Fullført</th>
-                        <th>Startet av</th>
+                        <th class="text-center d-none d-md-table-cell">Deltellinger</th>
+                        <th class="d-none d-md-table-cell">Startet</th>
+                        <th class="d-none d-lg-table-cell">Fullført</th>
+                        <th class="d-none d-lg-table-cell">Startet av</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -38,7 +38,7 @@
                             <br><small class="text-muted">{{ count.location }}</small>
                             {% endif %}
                         </td>
-                        <td>{{ count.event.name }}</td>
+                        <td class="d-none d-lg-table-cell">{{ count.event.name }}</td>
                         <td>
                             {% if count.status == 'IN_PROGRESS' %}
                             <span class="badge bg-warning text-dark">
@@ -54,7 +54,7 @@
                             </span>
                             {% endif %}
                         </td>
-                        <td class="text-center">
+                        <td class="text-center d-none d-md-table-cell">
                             {% with partial_count=count.partial_counts.count %}
                             {% if partial_count > 0 %}
                             <span class="badge bg-info">{{ partial_count }} importert</span>
@@ -63,13 +63,13 @@
                             {% endif %}
                             {% endwith %}
                         </td>
-                        <td>{{ count.started_at|date:"d.m.Y H:i" }}</td>
-                        <td>
+                        <td class="d-none d-md-table-cell">{{ count.started_at|date:"d.m.Y H:i" }}</td>
+                        <td class="d-none d-lg-table-cell">
                             {% if count.completed_at %}
                             {{ count.completed_at|date:"d.m.Y H:i" }}
                             {% else %}-{% endif %}
                         </td>
-                        <td>{{ count.started_by.username|default:"-" }}</td>
+                        <td class="d-none d-lg-table-cell">{{ count.started_by.username|default:"-" }}</td>
                         <td class="text-end">
                             <a href="{% url 'inventory:stock_count_detail' count.pk %}" 
                                class="btn btn-sm {% if count.status == 'IN_PROGRESS' %}btn-primary{% else %}btn-outline-secondary{% endif %}">

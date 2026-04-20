@@ -44,12 +44,12 @@
                 <tr>
                     <th>Ordrenummer</th>
                     <th>Leverandør</th>
-                    <th>Event</th>
+                    <th class="d-none d-lg-table-cell">Event</th>
                     <th>Status</th>
-                    <th>Bestilt</th>
-                    <th>Forv. levering</th>
-                    <th class="text-end">Totalt</th>
-                    <th class="text-center">Mottatt</th>
+                    <th class="d-none d-md-table-cell">Bestilt</th>
+                    <th class="d-none d-lg-table-cell">Forv. levering</th>
+                    <th class="text-end d-none d-md-table-cell">Totalt</th>
+                    <th class="text-center d-none d-sm-table-cell">Mottatt</th>
                     <th></th>
                 </tr>
             </thead>
@@ -62,7 +62,7 @@
                         </a>
                     </td>
                     <td>{{ order.supplier.name }}</td>
-                    <td>{{ order.event.name }}</td>
+                    <td class="d-none d-lg-table-cell">{{ order.event.name }}</td>
                     <td>
                         {% if order.status == 'DRAFT' %}
                         <span class="badge bg-secondary">Utkast</span>
@@ -76,10 +76,10 @@
                         <span class="badge bg-danger">Kansellert</span>
                         {% endif %}
                     </td>
-                    <td>{{ order.order_date|date:"d.m.Y"|default:"-" }}</td>
-                    <td>{{ order.expected_delivery|date:"d.m.Y"|default:"-" }}</td>
-                    <td class="text-end">{{ order.total_cost_kr|floatformat:2 }} kr</td>
-                    <td class="text-center">
+                    <td class="d-none d-md-table-cell">{{ order.order_date|date:"d.m.Y"|default:"-" }}</td>
+                    <td class="d-none d-lg-table-cell">{{ order.expected_delivery|date:"d.m.Y"|default:"-" }}</td>
+                    <td class="text-end d-none d-md-table-cell">{{ order.total_cost_kr|floatformat:2 }} kr</td>
+                    <td class="text-center d-none d-sm-table-cell">
                         <div class="progress" style="height: 20px; min-width: 80px;">
                             <div class="progress-bar 
                                 {% if order.receive_progress_percent == 100 %}bg-success

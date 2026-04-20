@@ -165,6 +165,63 @@
                 padding-left: 1rem;
                 padding-right: 1rem;
             }
+            
+            /* Skjul kolonner på mobil */
+            .d-mobile-none {
+                display: none !important;
+            }
+            
+            /* Større touch-targets på mobil */
+            .btn {
+                min-height: 44px;
+                min-width: 44px;
+            }
+            
+            .btn-sm {
+                min-height: 38px;
+                min-width: 38px;
+                padding: 0.5rem 0.75rem;
+            }
+            
+            /* Bedre lesbarhet på tabeller */
+            .table td, .table th {
+                padding: 0.75rem 0.5rem;
+                font-size: 0.9rem;
+            }
+            
+            /* Større form-elementer */
+            .form-control, .form-select {
+                min-height: 44px;
+                font-size: 16px; /* Forhindrer zoom på iOS */
+            }
+            
+            /* Card headers */
+            .card-header h5, .card-header h6 {
+                font-size: 1rem;
+            }
+            
+            /* Overskrifter */
+            h1 { font-size: 1.5rem; }
+            h2 { font-size: 1.25rem; }
+            
+            /* Statistikk-kort på mobil */
+            .stat-card .stat-icon {
+                font-size: 1.5rem;
+            }
+            
+            /* Forbedret scroll på tabeller */
+            .table-responsive {
+                -webkit-overflow-scrolling: touch;
+            }
+            
+            /* Paginering */
+            .pagination .page-link {
+                min-width: 44px;
+                min-height: 44px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
         }
     </style>
     {% block extra_css %}{% endblock %}

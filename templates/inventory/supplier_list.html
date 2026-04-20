@@ -18,9 +18,9 @@
                 <thead class="table-light">
                     <tr>
                         <th>Navn</th>
-                        <th>Kontaktperson</th>
-                        <th>E-post</th>
-                        <th>Telefon</th>
+                        <th class="d-none d-md-table-cell">Kontaktperson</th>
+                        <th class="d-none d-lg-table-cell">E-post</th>
+                        <th class="d-none d-md-table-cell">Telefon</th>
                         <th class="text-center">Produkter</th>
                         <th></th>
                     </tr>
@@ -29,15 +29,15 @@
                     {% for s in suppliers %}
                     <tr>
                         <td><strong>{{ s.name }}</strong></td>
-                        <td>{{ s.contact_person|default:"-" }}</td>
-                        <td>
+                        <td class="d-none d-md-table-cell">{{ s.contact_person|default:"-" }}</td>
+                        <td class="d-none d-lg-table-cell">
                             {% if s.email %}
                             <a href="mailto:{{ s.email }}">{{ s.email }}</a>
                             {% else %}
                             -
                             {% endif %}
                         </td>
-                        <td>{{ s.phone|default:"-" }}</td>
+                        <td class="d-none d-md-table-cell">{{ s.phone|default:"-" }}</td>
                         <td class="text-center">
                             <span class="badge bg-secondary">{{ s.products_count }}</span>
                         </td>

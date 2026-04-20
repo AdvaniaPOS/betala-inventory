@@ -145,17 +145,17 @@
             <table class="table table-hover mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th>Tidspunkt</th>
+                        <th class="d-none d-md-table-cell">Tidspunkt</th>
                         <th>Produkt</th>
                         <th>Type</th>
                         <th class="text-end">Antall</th>
-                        <th>Referanse</th>
+                        <th class="d-none d-lg-table-cell">Referanse</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for t in other_transactions %}
                     <tr>
-                        <td>{{ t.transaction_date|date:"d.m.Y H:i" }}</td>
+                        <td class="d-none d-md-table-cell">{{ t.transaction_date|date:"d.m.Y H:i" }}</td>
                         <td>
                             {% if t.product.betala_product_id %}
                             <a href="{% url 'inventory:product_detail' t.product.betala_product_id %}">
@@ -185,7 +185,7 @@
                             <span class="text-danger">{{ t.quantity }}</span>
                             {% endif %}
                         </td>
-                        <td><small class="text-muted">{{ t.reference|default:"-" }}</small></td>
+                        <td class="d-none d-lg-table-cell"><small class="text-muted">{{ t.reference|default:"-" }}</small></td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -204,18 +204,18 @@
             <table class="table table-hover mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th>Tidspunkt</th>
+                        <th class="d-none d-md-table-cell">Tidspunkt</th>
                         <th>Produkt</th>
                         <th>Type</th>
                         <th class="text-end">Antall</th>
-                        <th>Referanse</th>
-                        <th>Bruker</th>
+                        <th class="d-none d-lg-table-cell">Referanse</th>
+                        <th class="d-none d-md-table-cell">Bruker</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for t in transactions %}
                     <tr>
-                        <td>{{ t.transaction_date|date:"d.m.Y H:i" }}</td>
+                        <td class="d-none d-md-table-cell">{{ t.transaction_date|date:"d.m.Y H:i" }}</td>
                         <td>
                             {% if t.product.betala_product_id %}
                             <a href="{% url 'inventory:product_detail' t.product.betala_product_id %}">
@@ -247,10 +247,10 @@
                             <span class="text-danger">{{ t.quantity }}</span>
                             {% endif %}
                         </td>
-                        <td>
+                        <td class="d-none d-lg-table-cell">
                             <small class="text-muted">{{ t.reference|default:"-" }}</small>
                         </td>
-                        <td>{{ t.created_by.username|default:"-" }}</td>
+                        <td class="d-none d-md-table-cell">{{ t.created_by.username|default:"-" }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>

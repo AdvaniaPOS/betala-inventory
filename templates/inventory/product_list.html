@@ -47,12 +47,12 @@
             <thead class="table-light">
                 <tr>
                     <th>Produkt</th>
-                    <th>Kategori</th>
-                    <th>Artikkelgruppe</th>
-                    <th>SKU</th>
+                    <th class="d-none d-md-table-cell">Kategori</th>
+                    <th class="d-none d-lg-table-cell">Artikkelgruppe</th>
+                    <th class="d-none d-lg-table-cell">SKU</th>
                     <th class="text-end">Pris</th>
-                    <th class="text-end">Min. nivå</th>
-                    <th>Status</th>
+                    <th class="text-end d-none d-md-table-cell">Min. nivå</th>
+                    <th class="d-none d-sm-table-cell">Status</th>
                 </tr>
             </thead>
             <tbody>
@@ -68,7 +68,7 @@
                         </span>
                         {% endif %}
                     </td>
-                    <td>
+                    <td class="d-none d-md-table-cell">
                         {% if product.category %}
                         <span class="badge" style="background-color: {{ product.category.color|default:'#6c757d' }}">
                             {{ product.category.name }}
@@ -77,10 +77,10 @@
                         <span class="text-muted">-</span>
                         {% endif %}
                     </td>
-                    <td>
+                    <td class="d-none d-lg-table-cell">
                         <small class="text-muted">{{ product.article_group_name }}</small>
                     </td>
-                    <td class="text-muted">{{ product.sku|default:"-" }}</td>
+                    <td class="text-muted d-none d-lg-table-cell">{{ product.sku|default:"-" }}</td>
                     <td class="text-end">
                         {% if product.betala_is_bundles %}
                         <span class="badge bg-info">Pakke</span>
@@ -92,8 +92,8 @@
                         -
                         {% endif %}
                     </td>
-                    <td class="text-end">{{ product.min_stock_level }}</td>
-                    <td>
+                    <td class="text-end d-none d-md-table-cell">{{ product.min_stock_level }}</td>
+                    <td class="d-none d-sm-table-cell">
                         {% if product.is_active %}
                         <span class="badge bg-success">Aktiv</span>
                         {% else %}
